@@ -111,8 +111,7 @@ contract DiscountExercise is BaseExercise {
         // transfer payment tokens from user to the treasury
         uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
-        paymentToken.safeTransferFrom(from, treasury, paymentAmount);
-
+        distributeFeesFrom(paymentAmount, paymentToken, from);
         // mint underlying tokens to recipient
         underlyingToken.mint(recipient, amount);
 
