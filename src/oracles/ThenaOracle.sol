@@ -153,18 +153,18 @@ contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice Updates the oracle parameters. Only callable by the owner.
-    /// @param isToken0_ Whether to give the price of the token0 or token1.
+    /// @param token Target token used for pricing.
     /// @param multiplier_ The multiplier applied to the TWAP value. Encodes the discount of
     /// the options token. Uses 4 decimals.
     /// @param secs_ The size of the window to take the TWAP value over in seconds.
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(bool isToken0_, uint16 multiplier_, uint56 secs_, uint128 minPrice_) external onlyOwner {
-        isToken0 = isToken0_;
+    function setParams(address token, uint16 multiplier_, uint56 secs_, uint128 minPrice_) external onlyOwner {
+        isToken0 = thenaPair.token0() == token;
         multiplier = multiplier_;
         secs = secs_;
         minPrice = minPrice_;
-        emit SetParams(isToken0_, multiplier_, secs_, minPrice_);
+        emit SetParams(isToken0, multiplier_, secs_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------
