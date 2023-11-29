@@ -30,6 +30,8 @@ contract UniswapOracleTest is Test {
     address BNB_ADDRESS = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109;
 
+    uint MULTIPLIER_DENOM = 10000;
+
     uint256 bscFork;
 
     Params _default;
@@ -54,6 +56,64 @@ contract UniswapOracleTest is Test {
 
         uint256 spotPrice = getSpotPrice(_default.pair, _default.token);
         assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too big"); // 1%
+    }
+
+    function test_priceToken1() public {
+
+        ThenaOracle oracleToken0 = new ThenaOracle(
+            _default.pair,
+            IThenaPair(_default.pair).token0(),
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.minPrice
+        );
+        
+        ThenaOracle oracleToken1 = new ThenaOracle(
+            _default.pair,
+            IThenaPair(_default.pair).token1(),
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.minPrice
+        );
+
+        uint priceToken0 = oracleToken0.getPrice();
+        uint priceToken1 = oracleToken1.getPrice();
+
+        assertEq(priceToken1, uint256(1e18).divWadDown(priceToken0), "incorrect price"); // 1%
+    }
+
+    function test_priceMultiplier(uint multiplier) public {
+        multiplier = bound(multiplier, 0, 10000);
+
+        ThenaOracle oracle0 = new ThenaOracle(
+            _default.pair,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.minPrice
+        );
+        
+        ThenaOracle oracle1 = new ThenaOracle(
+            _default.pair,
+            _default.token,
+            _default.owner,
+            uint16(multiplier),
+            _default.secs,
+            _default.minPrice
+        );
+
+        uint price0 = oracle0.getPrice();
+        uint price1 = oracle1.getPrice();
+
+        uint expectedPrice = max(
+            price0.mulDivUp(multiplier, MULTIPLIER_DENOM),
+            _default.minPrice
+        );
+
+        assertEq(price1, expectedPrice, "incorrect price multiplier"); // 1%
     }
 
     function test_priceManipulation() public {
@@ -122,6 +182,10 @@ contract UniswapOracleTest is Test {
         } else {
             price = uint256(reserve0).divWadDown(reserve1); 
         }
+    }
+
+    function max(uint x, uint y) internal pure returns (uint z) {
+        z = x > y ? x : y;
     }
 
 }

@@ -30,4 +30,6 @@ interface IThenaPair {
     function observations(uint256) external view returns (uint256 timestamp, uint256 reserve0Cumulative, uint256 reserve1Cumulative);
 
     function token0() external view returns (address);
+
+    function token1() external view returns (address);
 }
