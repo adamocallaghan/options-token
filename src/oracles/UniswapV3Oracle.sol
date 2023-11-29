@@ -35,7 +35,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Events
     /// -----------------------------------------------------------------------
 
-    event SetParams(uint16 multiplier, uint56 secs, uint56 ago, uint128 minPrice);
+    event SetParams(bool isToken0, uint16 multiplier, uint56 secs, uint56 ago, uint128 minPrice);
 
     /// -----------------------------------------------------------------------
     /// Constants
@@ -95,7 +95,7 @@ contract UniswapV3Oracle is IOracle, Owned {
         ago = ago_;
         minPrice = minPrice_;
 
-        emit SetParams(multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(isToken0, multiplier_, secs_, ago_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------
@@ -134,8 +134,7 @@ contract UniswapV3Oracle is IOracle, Owned {
             (int56[] memory tickCumulatives,) = uniswapPool.observe(secondsAgo);
             int24 tick = int24((tickCumulatives[1] - tickCumulatives[0]) / int56(int32(_twapDuration)));
 
-            // token decimals is 18
-            uint256 decimals = 1e18;
+            uint256 decimalPrecision = 1e18;
 
             // from https://optimistic.etherscan.io/address/0xB210CE856631EeEB767eFa666EC7C1C57738d438#code#F5#L49
             uint160 sqrtRatioX96 = TickMath.getSqrtRatioAtTick(tick);
@@ -144,13 +143,13 @@ contract UniswapV3Oracle is IOracle, Owned {
             if (sqrtRatioX96 <= type(uint128).max) {
                 uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
                 price = isToken0
-                    ? FullMath.mulDiv(ratioX192, decimals, 1 << 192)
-                    : FullMath.mulDiv(1 << 192, decimals, ratioX192);
+                    ? FullMath.mulDiv(ratioX192, decimalPrecision, 1 << 192)
+                    : FullMath.mulDiv(1 << 192, decimalPrecision, ratioX192);
             } else {
                 uint256 ratioX128 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, 1 << 64);
                 price = isToken0
-                    ? FullMath.mulDiv(ratioX128, decimals, 1 << 128)
-                    : FullMath.mulDiv(1 << 128, decimals, ratioX128);
+                    ? FullMath.mulDiv(ratioX128, decimalPrecision, 1 << 128)
+                    : FullMath.mulDiv(1 << 128, decimalPrecision, ratioX128);
             }
         }
 
@@ -166,6 +165,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice Updates the oracle parameters. Only callable by the owner.
+    /// @param token Target token used for pricing.
     /// @param multiplier_ The multiplier applied to the TWAP value. Encodes the discount of
     /// the options token. Uses 4 decimals.
     /// @param secs_ The size of the window to take the TWAP value over in seconds.
@@ -173,16 +173,15 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    /// @param isToken0_ Whether the price should be returned in terms of token0.
-    function setParams(uint16 multiplier_, uint32 secs_, uint32 ago_, uint128 minPrice_, bool isToken0_)
+    function setParams(address token, uint16 multiplier_, uint32 secs_, uint32 ago_, uint128 minPrice_)
         external
         onlyOwner
     {
+        isToken0 = token == uniswapPool.token0();
         multiplier = multiplier_;
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
-        isToken0 = isToken0_;
-        emit SetParams(multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(isToken0, multiplier_, secs_, ago_, minPrice_);
     }
 }
