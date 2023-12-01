@@ -155,7 +155,7 @@ contract UniswapOracleTest is Test {
         skip(1 minutes);
         
         // perform additional, smaller swap
-        address manipulator2 = makeAddr("manipulator");
+        address manipulator2 = makeAddr("manipulator2");
         deal(BNB_ADDRESS, manipulator2, amountOut[0] / 1000);
         vm.startPrank(manipulator2);
         IERC20(BNB_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
