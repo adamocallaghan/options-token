@@ -5,7 +5,6 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
-import "forge-std/console.sol";
 
 import {IUniswapPool} from "../interfaces/IUniswapPool.sol";
 import {TickMath} from "v3-core/libraries/TickMath.sol";
@@ -108,9 +107,6 @@ contract UniswapV3Oracle is IOracle, Owned {
         /// Storage loads
         /// -----------------------------------------------------------------------
 
-        uint256 multiplier_ = multiplier;
-        uint32 secs_ = secs;
-        uint32 ago_ = ago;
         uint256 minPrice_ = minPrice;
 
         /// -----------------------------------------------------------------------
@@ -125,8 +121,8 @@ contract UniswapV3Oracle is IOracle, Owned {
 
         // query Uniswap oracle to get TWAP tick
         {
-            uint32 _twapDuration = secs_;
-            uint32 _twapAgo = ago_;
+            uint32 _twapDuration = secs;
+            uint32 _twapAgo = ago;
             uint32[] memory secondsAgo = new uint32[](2);
             secondsAgo[0] = _twapDuration + _twapAgo;
             secondsAgo[1] = _twapAgo;
@@ -154,7 +150,7 @@ contract UniswapV3Oracle is IOracle, Owned {
         }
 
         // apply multiplier to price
-        price = price.mulDivUp(multiplier_, MULTIPLIER_DENOM);
+        price = price.mulDivUp(multiplier, MULTIPLIER_DENOM);
 
         // bound price above minPrice
         price = price < minPrice_ ? minPrice_ : price;
