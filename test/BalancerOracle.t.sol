@@ -223,10 +223,6 @@ contract BalancerOracleTest is Test {
             (balances[0] * weights[1]).divWadDown(balances[1] * weights[0]);
     }
 
-    function max(uint x, uint y) internal pure returns (uint z) {
-        z = x > y ? x : y;
-    }
-
     function swap(address pool, address tokenIn, address tokenOut, uint amountIn, address sender) internal returns (uint amountOut) {
         bytes32 poolId = IBalancerTwapOracle(pool).getPoolId();
         IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
