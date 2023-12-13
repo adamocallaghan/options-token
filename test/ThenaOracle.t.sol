@@ -18,16 +18,16 @@ struct Params {
     uint128 minPrice;
 }
 
-contract UniswapOracleTest is Test {
+contract ThenaOracleTest is Test {
     using stdStorage for StdStorage;
     using FixedPointMathLib for uint256;
 
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
     uint32 FORK_BLOCK = 33672842;
     
-    address THENA_POOL_ADDRESS = 0x63Db6ba9E512186C2FAaDaCEF342FB4A40dc577c;
-    address THENA_ADDRESS = 0xF4C8E32EaDEC4BFe97E0F595AdD0f4450a863a11;
-    address BNB_ADDRESS = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
+    address POOL_ADDRESS = 0x63Db6ba9E512186C2FAaDaCEF342FB4A40dc577c;
+    address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45;
+    address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955;
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109;
 
     uint MULTIPLIER_DENOM = 10000;
@@ -37,7 +37,7 @@ contract UniswapOracleTest is Test {
     Params _default;
 
     function setUp() public {
-        _default = Params(IThenaPair(THENA_POOL_ADDRESS), THENA_ADDRESS, address(this), 10000, 30 minutes, 1000);
+        _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 10000, 30 minutes, 1000);
         bscFork = vm.createSelectFork(BSC_RPC_URL, FORK_BLOCK);
     }
 
@@ -127,21 +127,21 @@ contract UniswapOracleTest is Test {
         );
 
         address manipulator1 = makeAddr("manipulator");
-        deal(THENA_ADDRESS, manipulator1, 1000000 ether);
+        deal(TOKEN_ADDRESS, manipulator1, 1000000 ether);
 
         // register initial oracle price
         uint256 price_1 = oracle.getPrice();
 
         // perform a large swap
         vm.startPrank(manipulator1);
-        IERC20(THENA_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
+        IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
 
         (uint256 reserve0, uint256 reserve1,) = _default.pair.getReserves();
         (uint256[] memory amountOut) = IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
-            (THENA_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 10,
+            (TOKEN_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 10,
             0,
-            THENA_ADDRESS,
-            BNB_ADDRESS,
+            TOKEN_ADDRESS,
+            PAYMENT_TOKEN_ADDRESS,
             false,
             manipulator1,
             type(uint32).max
@@ -156,15 +156,15 @@ contract UniswapOracleTest is Test {
         
         // perform additional, smaller swap
         address manipulator2 = makeAddr("manipulator2");
-        deal(BNB_ADDRESS, manipulator2, amountOut[0] / 1000);
+        deal(PAYMENT_TOKEN_ADDRESS, manipulator2, amountOut[0] / 1000);
         vm.startPrank(manipulator2);
-        IERC20(BNB_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
 
         IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
             amountOut[0] / 1000,
             0,
-            BNB_ADDRESS,
-            THENA_ADDRESS,
+            PAYMENT_TOKEN_ADDRESS,
+            TOKEN_ADDRESS,
             false,
             manipulator2,
             type(uint32).max
