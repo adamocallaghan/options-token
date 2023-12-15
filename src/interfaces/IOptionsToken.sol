@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 interface IOptionsToken {
-    function exercise(uint256 amount, address recipient, address option, bytes calldata params, uint256 deadline)
+    function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
         returns (bytes memory);
 

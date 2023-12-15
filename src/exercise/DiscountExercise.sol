@@ -12,6 +12,7 @@ import {OptionsToken} from "../OptionsToken.sol";
 
 struct DiscountExerciseParams {
     uint256 maxPaymentAmount;
+    uint256 deadline;
 }
 
 struct DiscountExerciseReturnData {
@@ -30,6 +31,7 @@ contract DiscountExercise is BaseExercise, Owned {
 
     /// Errors
     error Exercise__SlippageTooHigh();
+    error Exercise__PastDeadline();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -114,12 +116,15 @@ contract DiscountExercise is BaseExercise, Owned {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
 
+        if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
+
         // transfer payment tokens from user to the treasury
+        // this price includes the discount
         uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
         paymentToken.safeTransferFrom(from, treasury, paymentAmount);
 
-        // mint underlying tokens to recipient
+        // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);
 
         data = abi.encode(
