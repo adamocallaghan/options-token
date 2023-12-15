@@ -28,6 +28,7 @@ contract ThenaOracle is IOracle, Owned {
 
     error ThenaOracle__StablePairsUnsupported();
     error ThenaOracle__Overflow();
+    error ThenaOracle__BelowMinPrice();
 
     /// -----------------------------------------------------------------------
     /// Events
@@ -103,7 +104,6 @@ contract ThenaOracle is IOracle, Owned {
 
         uint256 multiplier_ = multiplier;
         uint256 secs_ = secs;
-        uint256 minPrice_ = minPrice;
 
         /// -----------------------------------------------------------------------
         /// Computation
@@ -141,11 +141,10 @@ contract ThenaOracle is IOracle, Owned {
             }
         }
 
+        if (price < minPrice) revert ThenaOracle__BelowMinPrice();
+
         // apply multiplier to price
         price = price.mulDivUp(multiplier_, MULTIPLIER_DENOM);
-
-        // bound price above minPrice
-        price = price < minPrice_ ? minPrice_ : price;
     }
 
     /// -----------------------------------------------------------------------

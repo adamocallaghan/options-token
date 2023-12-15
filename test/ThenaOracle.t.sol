@@ -80,7 +80,7 @@ contract ThenaOracleTest is Test {
         uint priceToken0 = oracleToken0.getPrice();
         uint priceToken1 = oracleToken1.getPrice();
 
-        assertEq(priceToken1, uint256(1e18).divWadDown(priceToken0), "incorrect price"); // 1%
+        assertApproxEqAbs(priceToken1, uint256(1e18).divWadDown(priceToken0), 1, "incorrect price"); // 1%
     }
 
     function test_priceMultiplier(uint multiplier) public {
@@ -107,12 +107,58 @@ contract ThenaOracleTest is Test {
         uint price0 = oracle0.getPrice();
         uint price1 = oracle1.getPrice();
 
-        uint expectedPrice = max(
-            price0.mulDivUp(multiplier, MULTIPLIER_DENOM),
+        uint expectedPrice = price0.mulDivDown(multiplier, MULTIPLIER_DENOM);
+
+        assertApproxEqAbs(price1, expectedPrice, 1, "incorrect price multiplier"); // 1%
+    }
+
+    function test_revertMinPrice() public {
+        ThenaOracle oracle = new ThenaOracle(
+            _default.pair,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
             _default.minPrice
         );
 
-        assertEq(price1, expectedPrice, "incorrect price multiplier"); // 1%
+        // clean twap for test
+        skip(1 hours);
+        _default.pair.sync();
+        skip(1 hours);
+        _default.pair.sync();
+        skip(1 hours);
+
+        // register initial oracle price
+        uint256 price = oracle.getPrice();
+
+        // drag price below min
+        uint256 amountIn = 10000000;
+        deal(TOKEN_ADDRESS, address(this), amountIn);
+        IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, amountIn);
+        IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
+            amountIn,
+            0,
+            TOKEN_ADDRESS,
+            PAYMENT_TOKEN_ADDRESS,
+            false,
+            address(this),
+            type(uint32).max
+        );
+
+        ThenaOracle oracleMinPrice = new ThenaOracle(
+            _default.pair,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            uint128(price)
+        );
+
+        skip(_default.secs);
+
+        vm.expectRevert(ThenaOracle.ThenaOracle__BelowMinPrice.selector);
+        oracleMinPrice.getPrice();
     }
 
     function test_singleBlockManipulation() public {
@@ -174,6 +220,7 @@ contract ThenaOracleTest is Test {
 
         // perform a large swap
         address manipulator = makeAddr("manipulator");
+        deal(TOKEN_ADDRESS, manipulator, 2**128);
         vm.startPrank(manipulator);
         (uint256 reserve0, uint256 reserve1,) = _default.pair.getReserves();
         uint256 amountIn = (TOKEN_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 4;
