@@ -27,7 +27,8 @@ contract OptionsTokenTest is Test {
 
     address owner;
     address tokenAdmin;
-    address treasury;
+    address[] feeRecipients_;
+    uint256[] feeBPS_;
 
     OptionsToken optionsToken;
     DiscountExercise exerciser;
@@ -40,7 +41,14 @@ contract OptionsTokenTest is Test {
         // set up accounts
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin");
-        treasury = makeAddr("treasury");
+
+        feeRecipients_ = new address[](2);
+        feeRecipients_[0] = makeAddr("feeRecipient");
+        feeRecipients_[1] = makeAddr("feeRecipient2");
+
+        feeBPS_ = new uint256[](2);
+        feeBPS_[0] = 1000; // 10%
+        feeBPS_[1] = 9000; // 90%
 
         // deploy contracts
         balancerTwapOracle = new MockBalancerTwapOracle();
@@ -50,7 +58,7 @@ contract OptionsTokenTest is Test {
         underlyingToken = address(new TestERC20());
         optionsToken = new OptionsToken("TIT Call Option Token", "oTIT", owner, tokenAdmin);
 
-        exerciser = new DiscountExercise(optionsToken, owner, paymentToken, ERC20(underlyingToken), oracle, treasury);
+        exerciser = new DiscountExercise(optionsToken, owner, paymentToken, ERC20(underlyingToken), oracle, feeRecipients_, feeBPS_);
         TestERC20(underlyingToken).mint(address(exerciser), 1e20 ether);
 
         // add exerciser to the list of options
@@ -106,8 +114,13 @@ contract OptionsTokenTest is Test {
 
         // verify payment tokens were transferred
         assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
+        uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
+        uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
         assertEqDecimal(
-            paymentToken.balanceOf(treasury), expectedPaymentAmount, 18, "treasury didn't receive payment tokens"
+            paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens"
+        );
+        assertEqDecimal(
+            paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens"
         );
         if (amount != 0) {
             DiscountExerciseReturnData memory returnData = abi.decode(returnBytes, (DiscountExerciseReturnData));
@@ -143,8 +156,13 @@ contract OptionsTokenTest is Test {
 
         // verify payment tokens were transferred
         assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
+        uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
+        uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
         assertEqDecimal(
-            paymentToken.balanceOf(treasury), expectedPaymentAmount, 18, "treasury didn't receive payment tokens"
+            paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens"
+        );
+        assertEqDecimal(
+            paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens"
         );
         if (amount != 0) {
             DiscountExerciseReturnData memory returnData = abi.decode(returnBytes, (DiscountExerciseReturnData));
