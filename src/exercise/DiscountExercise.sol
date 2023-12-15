@@ -8,11 +8,11 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
-import {IERC20Mintable} from "../interfaces/IERC20Mintable.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 
 struct DiscountExerciseParams {
     uint256 maxPaymentAmount;
+    uint256 deadline;
 }
 
 struct DiscountExerciseReturnData {
@@ -31,6 +31,7 @@ contract DiscountExercise is BaseExercise {
 
     /// Errors
     error Exercise__SlippageTooHigh();
+    error Exercise__PastDeadline();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -43,7 +44,7 @@ contract DiscountExercise is BaseExercise {
     ERC20 public immutable paymentToken;
 
     /// @notice The underlying token purchased during redemption
-    IERC20Mintable public immutable underlyingToken;
+    ERC20 public immutable underlyingToken;
 
     /// Storage variables
 
@@ -58,7 +59,7 @@ contract DiscountExercise is BaseExercise {
         OptionsToken oToken_,
         address owner_,
         ERC20 paymentToken_,
-        IERC20Mintable underlyingToken_,
+        ERC20 underlyingToken_,
         IOracle oracle_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
@@ -85,7 +86,6 @@ contract DiscountExercise is BaseExercise {
         onlyOToken
         returns (bytes memory data)
     {
-        if (msg.sender != address(oToken)) revert Exercise__NotOToken();
         return _exercise(from, amount, recipient, params);
     }
 
@@ -108,12 +108,16 @@ contract DiscountExercise is BaseExercise {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
 
+        if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
+
         // transfer payment tokens from user to the treasury
+        // this price includes the discount
         uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
+
         distributeFeesFrom(paymentAmount, paymentToken, from);
-        // mint underlying tokens to recipient
-        underlyingToken.mint(recipient, amount);
+        // transfer underlying tokens to recipient
+        underlyingToken.safeTransfer(recipient, amount);
 
         data = abi.encode(
             DiscountExerciseReturnData({
