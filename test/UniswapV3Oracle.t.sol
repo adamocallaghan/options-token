@@ -2,19 +2,18 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 import {UniswapV3Oracle} from "../src/oracles/UniswapV3Oracle.sol";
 import {IUniswapV3Pool} from "v3-core/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "v3-core/libraries/TickMath.sol";
 import {FullMath} from "v3-core/libraries/FullMath.sol";
 import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
-import {IUniswapPool} from "../src/interfaces/IUniswapPool.sol";
+import {IUniswapV3Pool} from "v3-core/interfaces/IUniswapV3Pool.sol";
 import {MockUniswapPool} from "./mocks/MockUniswapPool.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 struct Params {
-    IUniswapPool pool;
+    IUniswapV3Pool pool;
     address token;
     address owner;
     uint16 multiplier;
@@ -53,7 +52,7 @@ contract UniswapOracleTest is Test {
         mockV3Pool.setCumulatives(sampleCumulatives);
         mockV3Pool.setToken0(OP_ADDRESS);
 
-        _default = Params(IUniswapPool(WETH_OP_POOL_ADDRESS), OP_ADDRESS, address(this), 10000, 30 minutes, 0, 1000);
+        _default = Params(IUniswapV3Pool(WETH_OP_POOL_ADDRESS), OP_ADDRESS, address(this), 10000, 30 minutes, 0, 1000);
         swapRouter = ISwapRouter(SWAP_ROUTER_ADDRESS);
     }
 
@@ -133,7 +132,7 @@ contract UniswapOracleTest is Test {
         assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too big"); // 1%
     }
 
-    function test_priceManipulation() public {
+    function test_revertMinPrice() public {
         opFork = vm.createSelectFork(OPTIMISM_RPC_URL, FORK_BLOCK);
 
         UniswapV3Oracle oracle = new UniswapV3Oracle(
@@ -146,51 +145,132 @@ contract UniswapOracleTest is Test {
             _default.minPrice
         );
 
-        address manipulator1 = makeAddr("manipulator");
-        deal(OP_ADDRESS, manipulator1, 1000000 ether);
+        skip(_default.secs);
 
-        // register initial oracle price
-        uint256 price_1 = oracle.getPrice();
+        uint256 price = oracle.getPrice();
 
-        // perform a large swap
-        vm.startPrank(manipulator1);
+        uint256 amountIn = 100000 ether;
+        deal(OP_ADDRESS, address(this), amountIn);
         ISwapRouter.ExactInputSingleParams memory paramsIn =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: OP_ADDRESS,
                 tokenOut: WETH_ADDRESS,
                 fee: POOL_FEE,
-                recipient: manipulator1,
+                recipient: address(this),
                 deadline: block.timestamp,
-                amountIn: 1000000 ether,
+                amountIn: amountIn,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
-        IERC20(OP_ADDRESS).approve(address(swapRouter), 1000000 ether);
-        uint amountOut = swapRouter.exactInputSingle(paramsIn);
-        vm.stopPrank();
+        IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
+        swapRouter.exactInputSingle(paramsIn);
 
-        // wait 60 seconds
-        skip(1 minutes);
-        
-        // perform additional, smaller swap
-        address manipulator2 = makeAddr("manipulator");
-        deal(OP_ADDRESS, manipulator2, amountOut);
-        vm.startPrank(manipulator2);
-        ISwapRouter.ExactInputSingleParams memory paramsOut =
+        // deploy a new oracle with a minPrice that is too high
+        UniswapV3Oracle oracleMinPrice = new UniswapV3Oracle(
+            _default.pool,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.ago,
+            uint128(price)
+        );
+
+        skip(_default.secs);
+
+        vm.expectRevert(UniswapV3Oracle.UniswapOracle__BelowMinPrice.selector);
+        oracleMinPrice.getPrice();
+    }
+
+    function test_singleBlockManipulation() public {
+        opFork = vm.createSelectFork(OPTIMISM_RPC_URL, FORK_BLOCK);
+
+        UniswapV3Oracle oracle = new UniswapV3Oracle(
+            _default.pool,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.ago,
+            _default.minPrice
+        );
+
+        address manipulator = makeAddr("manipulator");
+        deal(OP_ADDRESS, manipulator, 1000000 ether);
+
+        // register initial oracle price
+        uint256 price_1 = oracle.getPrice();
+
+        // perform a large swap
+        vm.startPrank(manipulator);
+        uint256 reserve = IERC20(OP_ADDRESS).balanceOf(WETH_OP_POOL_ADDRESS);
+        uint256 amountIn = reserve / 4;
+        ISwapRouter.ExactInputSingleParams memory paramsIn =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: OP_ADDRESS,
                 tokenOut: WETH_ADDRESS,
                 fee: POOL_FEE,
-                recipient: manipulator1,
+                recipient: manipulator,
                 deadline: block.timestamp,
-                amountIn: amountOut / 100, // perform small swap
+                amountIn: amountIn,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
-        IERC20(OP_ADDRESS).approve(address(swapRouter), amountOut / 100);
-        swapRouter.exactInputSingle(paramsOut);
+        IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
+        swapRouter.exactInputSingle(paramsIn);
+        vm.stopPrank();
+
+        // price should not have changed
+        assertEqDecimal(price_1, oracle.getPrice(), 18);
+    }
+
+    function test_priceManipulation(uint256 skipTime) public {
+        skipTime = bound(skipTime, 1, _default.secs);
+        opFork = vm.createSelectFork(OPTIMISM_RPC_URL, FORK_BLOCK);
+
+        UniswapV3Oracle oracle = new UniswapV3Oracle(
+            _default.pool,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.ago,
+            _default.minPrice
+        );
+
+        address manipulator = makeAddr("manipulator");
+        deal(OP_ADDRESS, manipulator, 1000000 ether);
+
+        // register initial oracle price
+        uint256 price_1 = oracle.getPrice();
+
+        // perform a large swap
+        vm.startPrank(manipulator);
+        uint256 reserve = IERC20(OP_ADDRESS).balanceOf(WETH_OP_POOL_ADDRESS);
+        uint256 amountIn = reserve / 4;
+        ISwapRouter.ExactInputSingleParams memory paramsIn =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: OP_ADDRESS,
+                tokenOut: WETH_ADDRESS,
+                fee: POOL_FEE,
+                recipient: manipulator,
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+        IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
+        swapRouter.exactInputSingle(paramsIn);
+        vm.stopPrank();
+
+        // wait
+        skip(skipTime);
+
+        (uint160 sqrtRatioX96,,,,,,) = IUniswapV3Pool(WETH_OP_POOL_ADDRESS).slot0();
+        uint256 spotPrice = computePriceFromX96(sqrtRatioX96);
+        uint256 expectedPrice = (price_1 * (_default.secs - skipTime) + spotPrice * skipTime) / _default.secs;
         
-        assertApproxEqRel(price_1, oracle.getPrice(), 0.01 ether, "price variance too large");
+        assertApproxEqRel(oracle.getPrice(), expectedPrice, 0.001 ether, "price variance too large");
     }
 
     function computePriceFromX96(uint160 sqrtRatioX96) internal view returns (uint256 price) {

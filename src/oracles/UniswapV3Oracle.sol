@@ -6,7 +6,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
 
-import {IUniswapPool} from "../interfaces/IUniswapPool.sol";
+import {IUniswapV3Pool} from "v3-core/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "v3-core/libraries/TickMath.sol";
 import {FullMath} from "v3-core/libraries/FullMath.sol";
 
@@ -28,7 +28,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Errors
     /// -----------------------------------------------------------------------
 
-    error UniswapOracle__TWAPOracleNotReady();
+    error UniswapOracle__BelowMinPrice();
 
     /// -----------------------------------------------------------------------
     /// Events
@@ -49,7 +49,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice The UniswapV3 Pool contract (provides the oracle)
-    IUniswapPool public immutable uniswapPool;
+    IUniswapV3Pool public immutable uniswapPool;
 
     /// -----------------------------------------------------------------------
     /// Storage variables
@@ -79,7 +79,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     constructor(
-        IUniswapPool uniswapPool_,
+        IUniswapV3Pool uniswapPool_,
         address token,
         address owner_,
         uint16 multiplier_,
@@ -149,11 +149,11 @@ contract UniswapV3Oracle is IOracle, Owned {
             }
         }
 
+        // apply minimum price
+        if (price < minPrice_) revert UniswapOracle__BelowMinPrice();
+
         // apply multiplier to price
         price = price.mulDivUp(multiplier, MULTIPLIER_DENOM);
-
-        // bound price above minPrice
-        price = price < minPrice_ ? minPrice_ : price;
     }
 
     /// -----------------------------------------------------------------------
