@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
@@ -25,7 +24,7 @@ contract ThenaOracleTest is Test {
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
     uint32 FORK_BLOCK = 33672842;
     
-    address POOL_ADDRESS = 0x63Db6ba9E512186C2FAaDaCEF342FB4A40dc577c;
+    address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF;
     address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45;
     address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955;
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109;
@@ -55,7 +54,7 @@ contract ThenaOracleTest is Test {
         uint oraclePrice = oracle.getPrice();
 
         uint256 spotPrice = getSpotPrice(_default.pair, _default.token);
-        assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too big"); // 1%
+        assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too large"); // 1%
     }
 
     function test_priceToken1() public {
@@ -116,7 +115,7 @@ contract ThenaOracleTest is Test {
         assertEq(price1, expectedPrice, "incorrect price multiplier"); // 1%
     }
 
-    function test_priceManipulation() public {
+    function test_singleBlockManipulation() public {
         ThenaOracle oracle = new ThenaOracle(
             _default.pair,
             _default.token,
@@ -126,52 +125,76 @@ contract ThenaOracleTest is Test {
             _default.minPrice
         );
 
-        address manipulator1 = makeAddr("manipulator");
-        deal(TOKEN_ADDRESS, manipulator1, 1000000 ether);
+        address manipulator = makeAddr("manipulator");
+        deal(TOKEN_ADDRESS, manipulator, 1000000 ether);
 
         // register initial oracle price
         uint256 price_1 = oracle.getPrice();
 
         // perform a large swap
-        vm.startPrank(manipulator1);
+        vm.startPrank(manipulator);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
 
         (uint256 reserve0, uint256 reserve1,) = _default.pair.getReserves();
-        (uint256[] memory amountOut) = IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
+        IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
             (TOKEN_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 10,
             0,
             TOKEN_ADDRESS,
             PAYMENT_TOKEN_ADDRESS,
             false,
-            manipulator1,
+            manipulator,
             type(uint32).max
         );
         vm.stopPrank();
 
         // price should not have changed
-        assertEq(oracle.getPrice(), price_1);
+        assertEq(oracle.getPrice(), price_1, "single block price variation");
+    }
 
-        // wait 60 seconds
-        skip(1 minutes);
-        
-        // perform additional, smaller swap
-        address manipulator2 = makeAddr("manipulator2");
-        deal(PAYMENT_TOKEN_ADDRESS, manipulator2, amountOut[0] / 1000);
-        vm.startPrank(manipulator2);
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, 1000000 ether);
+    function test_priceManipulation(uint256 skipTime) public {
+        skipTime = bound(skipTime, 1, _default.secs);
+        ThenaOracle oracle = new ThenaOracle(
+            _default.pair,
+            _default.token,
+            _default.owner,
+            _default.multiplier,
+            _default.secs,
+            _default.minPrice
+        );
 
+        // clean twap for test
+        skip(1 hours);
+        _default.pair.sync();
+        skip(1 hours);
+        _default.pair.sync();
+        skip(1 hours);
+
+        // register initial oracle price
+        uint256 price_1 = oracle.getPrice();
+
+        // perform a large swap
+        address manipulator = makeAddr("manipulator");
+        vm.startPrank(manipulator);
+        (uint256 reserve0, uint256 reserve1,) = _default.pair.getReserves();
+        uint256 amountIn = (TOKEN_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 4;
+        IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, amountIn);
         IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
-            amountOut[0] / 1000,
+            amountIn,
             0,
-            PAYMENT_TOKEN_ADDRESS,
             TOKEN_ADDRESS,
+            PAYMENT_TOKEN_ADDRESS,
             false,
-            manipulator2,
+            manipulator,
             type(uint32).max
         );
         vm.stopPrank();
-        
-        assertApproxEqRel(price_1, oracle.getPrice(), 0.01 ether, "price variance too large");
+
+        // wait
+        skip(skipTime);
+
+        uint256 expectedMinPrice = (price_1 * (_default.secs - skipTime) + getSpotPrice(_default.pair, _default.token) * skipTime) / _default.secs;
+
+        assertGeDecimal(oracle.getPrice(), expectedMinPrice, 18, "price variation too large");
     }
 
     function getSpotPrice(IThenaPair pair, address token) internal view returns (uint256 price) {
