@@ -34,15 +34,7 @@ contract BalancerOracle is IOracle, Owned {
     /// Events
     /// -----------------------------------------------------------------------
 
-    event SetParams(uint16 multiplier, uint56 secs, uint56 ago, uint128 minPrice);
-
-    /// -----------------------------------------------------------------------
-    /// Constants
-    /// -----------------------------------------------------------------------
-
-    /// @notice The denominator for converting the multiplier into a decimal number.
-    /// i.e. multiplier uses 4 decimals.
-    uint256 internal constant MULTIPLIER_DENOM = 10000;
+    event SetParams(uint56 secs, uint56 ago, uint128 minPrice);
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
@@ -54,10 +46,6 @@ contract BalancerOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
-
-    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
-    uint16 public multiplier;
 
     /// @notice The size of the window to take the TWAP value over in seconds.
     uint56 public secs;
@@ -82,7 +70,6 @@ contract BalancerOracle is IOracle, Owned {
         IBalancerTwapOracle balancerTwapOracle_,
         address token,
         address owner_,
-        uint16 multiplier_,
         uint56 secs_,
         uint56 ago_,
         uint128 minPrice_
@@ -93,12 +80,11 @@ contract BalancerOracle is IOracle, Owned {
         (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle_.getPoolId());
         isToken0 = poolTokens[0] == token;
 
-        multiplier = multiplier_;
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
 
-        emit SetParams(multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(secs_, ago_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------
@@ -111,7 +97,6 @@ contract BalancerOracle is IOracle, Owned {
         /// Storage loads
         /// -----------------------------------------------------------------------
 
-        uint256 multiplier_ = multiplier;
         uint256 secs_ = secs;
         uint256 ago_ = ago;
         uint256 minPrice_ = minPrice;
@@ -148,9 +133,6 @@ contract BalancerOracle is IOracle, Owned {
 
         // apply min price
         if (price < minPrice_) revert BalancerOracle__BelowMinPrice();
-
-        // apply multiplier to price
-        price = price.mulDivUp(multiplier_, MULTIPLIER_DENOM);
     }
 
     /// -----------------------------------------------------------------------
@@ -170,10 +152,9 @@ contract BalancerOracle is IOracle, Owned {
         (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle.getPoolId());
         isToken0 = poolTokens[0] == token;
 
-        multiplier = multiplier_;
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
-        emit SetParams(multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(secs_, ago_, minPrice_);
     }
 }

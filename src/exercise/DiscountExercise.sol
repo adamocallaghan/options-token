@@ -33,6 +33,13 @@ contract DiscountExercise is BaseExercise, Owned {
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetTreasury(address indexed newTreasury);
+    event SetMultiplier(uint256 indexed newMultiplier);
+
+    /// Constants
+
+    /// @notice The denominator for converting the multiplier into a decimal number.
+    /// i.e. multiplier uses 4 decimals.
+    uint256 internal constant MULTIPLIER_DENOM = 10000;
 
     /// Immutable parameters
 
@@ -48,6 +55,10 @@ contract DiscountExercise is BaseExercise, Owned {
     /// the underlying token while exercising options (the strike price)
     IOracle public oracle;
 
+    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
+    /// the options token. Uses 4 decimals.
+    uint256 public multiplier;
+
     /// @notice The treasury address which receives tokens paid during redemption
     address public treasury;
 
@@ -57,15 +68,18 @@ contract DiscountExercise is BaseExercise, Owned {
         ERC20 paymentToken_,
         ERC20 underlyingToken_,
         IOracle oracle_,
+        uint256 multiplier_,
         address treasury_
     ) BaseExercise(oToken_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
         oracle = oracle_;
+        multiplier = multiplier_;
         treasury = treasury_;
 
         emit SetOracle(oracle_);
         emit SetTreasury(treasury_);
+        emit SetMultiplier(multiplier_);
     }
 
     /// External functions
@@ -95,6 +109,13 @@ contract DiscountExercise is BaseExercise, Owned {
         emit SetOracle(oracle_);
     }
 
+    /// @notice Sets the discount multiplier.
+    /// @param multiplier_ The new multiplier
+    function setMultiplier(uint256 multiplier_) external onlyOwner {
+        multiplier = multiplier_;
+        emit SetMultiplier(multiplier_);
+    }
+
     /// @notice Sets the treasury address. Only callable by the owner.
     /// @param treasury_ The new treasury address
     function setTreasury(address treasury_) external onlyOwner {
@@ -114,9 +135,11 @@ contract DiscountExercise is BaseExercise, Owned {
 
         if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
 
+        // apply multiplier to price
+        uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
         // transfer payment tokens from user to the treasury
         // this price includes the discount
-        paymentAmount = amount.mulWadUp(oracle.getPrice());
+        paymentAmount = amount.mulWadUp(price);
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
         paymentToken.safeTransferFrom(from, treasury, paymentAmount);
 

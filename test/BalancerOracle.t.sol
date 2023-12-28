@@ -14,7 +14,6 @@ struct Params {
     IBalancerTwapOracle pair;
     address token;
     address owner;
-    uint16 multiplier;
     uint32 secs;
     uint32 ago;
     uint128 minPrice;
@@ -38,7 +37,7 @@ contract BalancerOracleTest is Test {
     Params _default;
 
     function setUp() public {
-        _default = Params(IBalancerTwapOracle(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 10000, 30 minutes, 0, 1000);
+        _default = Params(IBalancerTwapOracle(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 30 minutes, 0, 1000);
         opFork = vm.createSelectFork(MAINNET_RPC_URL, FORK_BLOCK);
     }
 
@@ -48,7 +47,6 @@ contract BalancerOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -68,7 +66,6 @@ contract BalancerOracleTest is Test {
             _default.pair,
             poolTokens[0],
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -78,7 +75,6 @@ contract BalancerOracleTest is Test {
             _default.pair,
             poolTokens[1],
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -90,36 +86,6 @@ contract BalancerOracleTest is Test {
         assertEq(priceToken1, uint256(1e18).divWadDown(priceToken0), "incorrect price"); // 1%
     }
 
-    function test_priceMultiplier(uint multiplier) public {
-        multiplier = bound(multiplier, 0, 10000);
-
-        BalancerOracle oracle0 = new BalancerOracle(
-            _default.pair,
-            _default.token,
-            _default.owner,
-            _default.multiplier,
-            _default.secs,
-            _default.ago,
-            _default.minPrice
-        );
-        
-        BalancerOracle oracle1 = new BalancerOracle(
-            _default.pair,
-            _default.token,
-            _default.owner,
-            uint16(multiplier),
-            _default.secs,
-            _default.ago,
-            _default.minPrice
-        );
-
-        uint price0 = oracle0.getPrice();
-        uint price1 = oracle1.getPrice();
-
-        uint expectedPrice = price0.mulDivUp(multiplier, MULTIPLIER_DENOM);
-
-        assertEq(price1, expectedPrice, "incorrect price multiplier");
-    }
 
     function test_singleBlockManipulation() public {
         IVault vault = _default.pair.getVault();
@@ -127,7 +93,6 @@ contract BalancerOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -162,7 +127,6 @@ contract BalancerOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
