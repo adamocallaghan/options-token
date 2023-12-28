@@ -19,16 +19,23 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     /// -----------------------------------------------------------------------
 
     error OptionsToken__NotTokenAdmin();
-    error OptionsToken__NotOption();
+    error OptionsToken__NotExerciseContract();
 
     /// -----------------------------------------------------------------------
     /// Events
     /// -----------------------------------------------------------------------
 
-    event Exercise(address indexed sender, address indexed recipient, uint256 amount, bytes parameters);
+    event Exercise(
+        address indexed sender,
+        address indexed recipient,
+        uint256 amount,
+        address data0,
+        uint256 data1,
+        uint256 data2
+    );
     event SetOracle(IOracle indexed newOracle);
     event SetTreasury(address indexed newTreasury);
-    event SetOption(address indexed option, bool isOption);
+    event SetExerciseContract(address indexed _address, bool _isExercise);
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
@@ -41,7 +48,7 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     /// Storage variables
     /// -----------------------------------------------------------------------
 
-    mapping (address => bool) public isOption;
+    mapping (address => bool) public isExerciseContract;
 
     /// -----------------------------------------------------------------------
     /// Constructor
@@ -91,7 +98,7 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
         virtual
-        returns (bytes memory)
+        returns (uint256 paymentAmount, address, uint256, uint256) // misc data
     {
         return _exercise(amount, recipient, option, params);
     }
@@ -102,10 +109,10 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
 
     /// @notice Adds a new Exercise contract to the available options.
     /// @param _address Address of the Exercise contract, that implements BaseExercise.
-    /// @param _isOption Whether oToken holders should be allowed to exercise using this option.
-    function setOption(address _address, bool _isOption) external onlyOwner {
-        isOption[_address] = _isOption;
-        emit SetOption(_address, _isOption);
+    /// @param _isExercise Whether oToken holders should be allowed to exercise using this option.
+    function setExerciseContract(address _address, bool _isExercise) external onlyOwner {
+        isExerciseContract[_address] = _isExercise;
+        emit SetExerciseContract(_address, _isExercise);
     }
 
     /// -----------------------------------------------------------------------
@@ -115,13 +122,13 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     function _exercise(uint256 amount, address recipient, address option, bytes calldata params)
         internal
         virtual
-        returns (bytes memory data)
+        returns (uint256 paymentAmount, address data0, uint256 data1, uint256 data2) // misc data
     {
         // skip if amount is zero
-        if (amount == 0) return new bytes(0);
+        if (amount == 0) return (0, address(0), 0, 0);
 
         // skip if option is not active
-        if (!isOption[option]) revert OptionsToken__NotOption();
+        if (!isExerciseContract[option]) revert OptionsToken__NotExerciseContract();
 
         // transfer options tokens from msg.sender to address(0)
         // we transfer instead of burn because TokenAdmin cares about totalSupply
@@ -129,8 +136,21 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
         transfer(address(0), amount);
 
         // give rewards to recipient
-        data = IExercise(option).exercise(msg.sender, amount, recipient, params);
+        (
+            paymentAmount,
+            data0,
+            data1,
+            data2
+        ) = IExercise(option).exercise(msg.sender, amount, recipient, params);
 
-        emit Exercise(msg.sender, recipient, amount, params);
+        // emit event
+        emit Exercise(
+            msg.sender,
+            recipient,
+            amount,
+            data0,
+            data1,
+            data2
+        );
     }
 }

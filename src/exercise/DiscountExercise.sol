@@ -15,10 +15,6 @@ struct DiscountExerciseParams {
     uint256 deadline;
 }
 
-struct DiscountExerciseReturnData {
-    uint256 paymentAmount;
-}
-
 /// @title Options Token Exercise Contract
 /// @author @bigbadbeard, @lookee, @eidolon
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -85,7 +81,7 @@ contract DiscountExercise is BaseExercise, Owned {
         virtual
         override
         onlyOToken
-        returns (bytes memory data)
+        returns (uint paymentAmount, address, uint256, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -111,7 +107,7 @@ contract DiscountExercise is BaseExercise, Owned {
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
         virtual
-        returns (bytes memory data)
+        returns (uint256 paymentAmount, address, uint256, uint256) 
     {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
@@ -120,18 +116,12 @@ contract DiscountExercise is BaseExercise, Owned {
 
         // transfer payment tokens from user to the treasury
         // this price includes the discount
-        uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
+        paymentAmount = amount.mulWadUp(oracle.getPrice());
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
         paymentToken.safeTransferFrom(from, treasury, paymentAmount);
 
         // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);
-
-        data = abi.encode(
-            DiscountExerciseReturnData({
-                paymentAmount: paymentAmount
-            })
-        );
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
