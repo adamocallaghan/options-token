@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {DiscountExerciseParams, DiscountExercise, BaseExercise} from "../src/exercise/DiscountExercise.sol";
@@ -28,6 +29,7 @@ contract OptionsTokenTest is Test {
     address owner;
     address tokenAdmin;
     address treasury;
+    address upgradeAdmin;
 
     OptionsToken optionsToken;
     DiscountExercise exerciser;
@@ -41,11 +43,17 @@ contract OptionsTokenTest is Test {
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin");
         treasury = makeAddr("treasury");
+        upgradeAdmin = makeAddr("upgradeAdmin");
 
         // deploy contracts
         paymentToken = new TestERC20();
         underlyingToken = address(new TestERC20());
-        optionsToken = new OptionsToken("TIT Call Option Token", "oTIT", owner, tokenAdmin);
+
+        address implementation = address(new OptionsToken());
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), "");
+        optionsToken = OptionsToken(address(proxy));
+        optionsToken = new OptionsToken();
+        optionsToken.initialize("TIT Call Option Token", "oTIT", owner, tokenAdmin, upgradeAdmin);
 
         address[] memory tokens = new address[](2);
         tokens[0] = underlyingToken;
@@ -106,7 +114,7 @@ contract OptionsTokenTest is Test {
 
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(address(this)), 0, 18, "user still has options tokens");
-        assertEqDecimal(optionsToken.balanceOf(address(0)), amount, 18, "address(0) didn't get options tokens");
+        assertEqDecimal(optionsToken.balanceOf(address(0x1)), amount, 18, "address(0) didn't get options tokens");
         assertEqDecimal(optionsToken.totalSupply(), amount, 18, "total supply changed");
 
         // verify payment tokens were transferred

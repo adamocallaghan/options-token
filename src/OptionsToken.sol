@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.13;
 
-import {Owned} from "solmate/auth/Owned.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {OwnableUpgradeable} from "oz-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC20Upgradeable} from "oz-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {UUPSUpgradeable} from "oz-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {IOptionsToken} from "./interfaces/IOptionsToken.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
-import {IERC20Mintable} from "./interfaces/IERC20Mintable.sol";
 import {IExercise} from "./interfaces/IExercise.sol";
 
 /// @title Options Token
 /// @author zefram.eth
 /// @notice Options token representing the right to perform an advantageous action,
 /// such as purchasing the underlying token at a discount to the market price.
-contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
+contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
 
     error OptionsToken__NotTokenAdmin();
     error OptionsToken__NotExerciseContract();
+    error Upgradeable__Unauthorized();
 
     /// -----------------------------------------------------------------------
     /// Events
@@ -38,29 +39,52 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     event SetExerciseContract(address indexed _address, bool _isExercise);
 
     /// -----------------------------------------------------------------------
-    /// Immutable parameters
+    /// Constant parameters
     /// -----------------------------------------------------------------------
 
-    /// @notice The contract that has the right to mint options tokens
-    address public immutable tokenAdmin;
+    uint256 public constant UPGRADE_TIMELOCK = 48 hours;
+    uint256 public constant FUTURE_NEXT_PROPOSAL_TIME = 365 days * 100;
 
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
 
+    /// @notice The contract that has the right to mint options tokens
+    address public tokenAdmin;
+
+    /// @notice The address that can perform upgrades
+    address public upgradeAdmin;
+
     mapping (address => bool) public isExerciseContract;
+    uint256 public upgradeProposalTime;
 
     /// -----------------------------------------------------------------------
-    /// Constructor
+    /// Modifier
     /// -----------------------------------------------------------------------
 
-    constructor(
+    modifier onlyUpgradeAdmin() {
+        if (msg.sender != upgradeAdmin) revert Upgradeable__Unauthorized();
+        _;
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Initializer
+    /// -----------------------------------------------------------------------
+
+    function initialize(
         string memory name_,
         string memory symbol_,
         address owner_,
-        address tokenAdmin_
-    ) ERC20(name_, symbol_, 18) Owned(owner_) {
+        address tokenAdmin_,
+        address upgradeAdmin_
+    ) external initializer {
+        __UUPSUpgradeable_init();
+        __ERC20_init(name_, symbol_);
+        __Ownable_init(owner_);
         tokenAdmin = tokenAdmin_;
+        upgradeAdmin = upgradeAdmin_;
+
+        clearUpgradeCooldown();
     }
 
     /// -----------------------------------------------------------------------
@@ -133,7 +157,7 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
         // transfer options tokens from msg.sender to address(0)
         // we transfer instead of burn because TokenAdmin cares about totalSupply
         // which we don't want to change in order to follow the emission schedule
-        transfer(address(0), amount);
+        transfer(address(0x1), amount);
 
         // give rewards to recipient
         (
@@ -152,5 +176,42 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
             data1,
             data2
         );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// UUPS functions
+    /// -----------------------------------------------------------------------
+
+    /**
+     * @dev This function must be called prior to upgrading the implementation.
+     *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
+     *      Strategists and roles with higher privilege can initiate this cooldown.
+     */
+    function initiateUpgradeCooldown() onlyUpgradeAdmin() external {
+        upgradeProposalTime = block.timestamp;
+    }
+
+    /**
+     * @dev This function is called:
+     *      - in initialize()
+     *      - as part of a successful upgrade
+     *      - manually to clear the upgrade cooldown.
+     * Guardian and roles with higher privilege can clear this cooldown.
+     */
+    function clearUpgradeCooldown() public {
+        if (msg.sender != upgradeAdmin && !(upgradeProposalTime == 0)) revert Upgradeable__Unauthorized();
+        upgradeProposalTime = block.timestamp + FUTURE_NEXT_PROPOSAL_TIME;
+    }
+
+    /**
+     * @dev This function must be overriden simply for access control purposes.
+     *      Only DEFAULT_ADMIN_ROLE can upgrade the implementation once the timelock
+     *      has passed.
+     */
+    function _authorizeUpgrade(address) onlyUpgradeAdmin internal override {
+        require(
+            upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp, "Upgrade cooldown not initiated or still ongoing"
+        );
+        clearUpgradeCooldown();
     }
 }
