@@ -12,10 +12,7 @@ import {OptionsToken} from "../OptionsToken.sol";
 
 struct DiscountExerciseParams {
     uint256 maxPaymentAmount;
-}
-
-struct DiscountExerciseReturnData {
-    uint256 paymentAmount;
+    uint256 deadline;
 }
 
 /// @title Options Token Exercise Contract
@@ -30,6 +27,7 @@ contract DiscountExercise is BaseExercise, Owned {
 
     /// Errors
     error Exercise__SlippageTooHigh();
+    error Exercise__PastDeadline();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -83,7 +81,7 @@ contract DiscountExercise is BaseExercise, Owned {
         virtual
         override
         onlyOToken
-        returns (bytes memory data)
+        returns (uint paymentAmount, address, uint256, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -109,24 +107,21 @@ contract DiscountExercise is BaseExercise, Owned {
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
         virtual
-        returns (bytes memory data)
+        returns (uint256 paymentAmount, address, uint256, uint256) 
     {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
 
+        if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
+
         // transfer payment tokens from user to the treasury
-        uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
+        // this price includes the discount
+        paymentAmount = amount.mulWadUp(oracle.getPrice());
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
         paymentToken.safeTransferFrom(from, treasury, paymentAmount);
 
-        // mint underlying tokens to recipient
+        // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);
-
-        data = abi.encode(
-            DiscountExerciseReturnData({
-                paymentAmount: paymentAmount
-            })
-        );
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
