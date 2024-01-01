@@ -12,7 +12,7 @@ import {IBalancerTwapOracle} from "../interfaces/IBalancerTwapOracle.sol";
 /// @author zefram.eth
 /// @notice The oracle contract that provides the current price to purchase
 /// the underlying token while exercising options. Uses Balancer TWAP oracle
-/// as data source, and then applies a multiplier & lower bound.
+/// as data source.
 /// @dev IMPORTANT: The payment token and the underlying token must use 18 decimals.
 /// This is because the Balancer oracle returns the TWAP value in 18 decimals
 /// and the OptionsToken contract also expects 18 decimals.
@@ -43,6 +43,10 @@ contract BalancerOracle is IOracle, Owned {
     /// @notice The Balancer TWAP oracle contract (usually a pool with oracle support)
     IBalancerTwapOracle public immutable balancerTwapOracle;
 
+    /// @notice Whether the price of token0 should be returned (in units of token1).
+    /// If false, the price of token1 is returned.
+    bool public immutable isToken0;
+
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
@@ -57,10 +61,6 @@ contract BalancerOracle is IOracle, Owned {
     /// @notice The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
     uint128 public minPrice;
-
-    /// @notice Whether the price should be returned in terms of token0.
-    /// If false, the price is returned in terms of token1.
-    bool public isToken0;
 
     /// -----------------------------------------------------------------------
     /// Constructor
@@ -128,7 +128,7 @@ contract BalancerOracle is IOracle, Owned {
 
         if (isToken0) {
             // convert price to token0
-            price = uint256(1e18).divWadDown(price);
+            price = uint256(1e18).divWadUp(price);
         }
 
         // apply min price
@@ -140,18 +140,12 @@ contract BalancerOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice Updates the oracle parameters. Only callable by the owner.
-    /// @param multiplier_ The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
     /// @param secs_ The size of the window to take the TWAP value over in seconds.
     /// @param ago_ The number of seconds in the past to take the TWAP from. The window
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(address token, uint16 multiplier_, uint56 secs_, uint56 ago_, uint128 minPrice_) external onlyOwner {
-        IVault vault = balancerTwapOracle.getVault();
-        (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle.getPoolId());
-        isToken0 = poolTokens[0] == token;
-
+    function setParams(uint56 secs_, uint56 ago_, uint128 minPrice_) external onlyOwner {
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;

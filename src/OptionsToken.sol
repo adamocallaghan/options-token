@@ -10,7 +10,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
 import {IExercise} from "./interfaces/IExercise.sol";
 
 /// @title Options Token
-/// @author zefram.eth
+/// @author Eidolon & lookee
 /// @notice Options token representing the right to perform an advantageous action,
 /// such as purchasing the underlying token at a discount to the market price.
 contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
@@ -52,20 +52,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// @notice The contract that has the right to mint options tokens
     address public tokenAdmin;
 
-    /// @notice The address that can perform upgrades
-    address public upgradeAdmin;
-
     mapping (address => bool) public isExerciseContract;
     uint256 public upgradeProposalTime;
 
-    /// -----------------------------------------------------------------------
-    /// Modifier
-    /// -----------------------------------------------------------------------
-
-    modifier onlyUpgradeAdmin() {
-        if (msg.sender != upgradeAdmin) revert Upgradeable__Unauthorized();
-        _;
-    }
+    constructor () initializer {}
 
     /// -----------------------------------------------------------------------
     /// Initializer
@@ -75,16 +65,14 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         string memory name_,
         string memory symbol_,
         address owner_,
-        address tokenAdmin_,
-        address upgradeAdmin_
+        address tokenAdmin_
     ) external initializer {
         __UUPSUpgradeable_init();
         __ERC20_init(name_, symbol_);
         __Ownable_init(owner_);
         tokenAdmin = tokenAdmin_;
-        upgradeAdmin = upgradeAdmin_;
 
-        clearUpgradeCooldown();
+        _clearUpgradeCooldown();
     }
 
     /// -----------------------------------------------------------------------
@@ -154,10 +142,8 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         // skip if option is not active
         if (!isExerciseContract[option]) revert OptionsToken__NotExerciseContract();
 
-        // transfer options tokens from msg.sender to address(0)
-        // we transfer instead of burn because TokenAdmin cares about totalSupply
-        // which we don't want to change in order to follow the emission schedule
-        transfer(address(0x1), amount);
+        // burn options tokens
+        _burn(msg.sender, amount);
 
         // give rewards to recipient
         (
@@ -187,7 +173,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
      *      Strategists and roles with higher privilege can initiate this cooldown.
      */
-    function initiateUpgradeCooldown() onlyUpgradeAdmin() external {
+    function initiateUpgradeCooldown() onlyOwner external {
         upgradeProposalTime = block.timestamp;
     }
 
@@ -198,9 +184,12 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      *      - manually to clear the upgrade cooldown.
      * Guardian and roles with higher privilege can clear this cooldown.
      */
-    function clearUpgradeCooldown() public {
-        if (msg.sender != upgradeAdmin && !(upgradeProposalTime == 0)) revert Upgradeable__Unauthorized();
+    function _clearUpgradeCooldown() internal {
         upgradeProposalTime = block.timestamp + FUTURE_NEXT_PROPOSAL_TIME;
+    }
+
+    function clearUpgradeCooldown() onlyOwner external {
+        _clearUpgradeCooldown();
     }
 
     /**
@@ -208,10 +197,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      *      Only DEFAULT_ADMIN_ROLE can upgrade the implementation once the timelock
      *      has passed.
      */
-    function _authorizeUpgrade(address) onlyUpgradeAdmin internal override {
+    function _authorizeUpgrade(address) onlyOwner internal override {
         require(
             upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp, "Upgrade cooldown not initiated or still ongoing"
         );
-        clearUpgradeCooldown();
+        _clearUpgradeCooldown();
     }
 }

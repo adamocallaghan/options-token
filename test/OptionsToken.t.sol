@@ -52,8 +52,7 @@ contract OptionsTokenTest is Test {
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), "");
         optionsToken = OptionsToken(address(proxy));
-        optionsToken = new OptionsToken();
-        optionsToken.initialize("TIT Call Option Token", "oTIT", owner, tokenAdmin, upgradeAdmin);
+        optionsToken.initialize("TIT Call Option Token", "oTIT", owner, tokenAdmin);
 
         address[] memory tokens = new address[](2);
         tokens[0] = underlyingToken;
@@ -221,7 +220,7 @@ contract OptionsTokenTest is Test {
         // such that the TWAP window becomes (block.timestamp - ORACLE_LARGEST_SAFETY_WINDOW - ORACLE_SECS, block.timestamp - ORACLE_LARGEST_SAFETY_WINDOW]
         // which is outside of the largest safety window
         vm.prank(owner);
-        oracle.setParams(address(0), PRICE_MULTIPLIER, ORACLE_SECS, ORACLE_LARGEST_SAFETY_WINDOW, ORACLE_MIN_PRICE);
+        oracle.setParams(ORACLE_SECS, ORACLE_LARGEST_SAFETY_WINDOW, ORACLE_MIN_PRICE);
 
         // exercise options tokens which should fail
         DiscountExerciseParams memory params = DiscountExerciseParams({
@@ -235,8 +234,6 @@ contract OptionsTokenTest is Test {
     function test_exercisePastDeadline(uint256 amount, address recipient, uint256 deadline) public {
         amount = bound(amount, 0, MAX_SUPPLY);
         deadline = bound(deadline, 0, block.timestamp - 1);
-        console.log("deadline: %s", deadline);
-        console.log("block.timestamp: %s", block.timestamp);
 
         // mint options tokens
         vm.prank(tokenAdmin);

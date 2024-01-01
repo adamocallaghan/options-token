@@ -28,6 +28,7 @@ contract DiscountExercise is BaseExercise, Owned {
     /// Errors
     error Exercise__SlippageTooHigh();
     error Exercise__PastDeadline();
+    error Exercise__MultiplierOutOfRange();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -112,6 +113,10 @@ contract DiscountExercise is BaseExercise, Owned {
     /// @notice Sets the discount multiplier.
     /// @param multiplier_ The new multiplier
     function setMultiplier(uint256 multiplier_) external onlyOwner {
+        if (
+            multiplier_ > MULTIPLIER_DENOM * 2 // over 200%
+            || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
+        ) revert Exercise__MultiplierOutOfRange();
         multiplier = multiplier_;
         emit SetMultiplier(multiplier_);
     }
