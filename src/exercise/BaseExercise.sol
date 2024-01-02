@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {IExercise} from "../interfaces/IExercise.sol";
-import {OptionsToken} from "../OptionsToken.sol";
+import {IOptionsToken} from "../OptionsToken.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
@@ -20,7 +20,7 @@ abstract contract BaseExercise is IExercise, Owned {
 
     uint256 public constant FEE_DENOMINATOR = 10_000;
 
-    OptionsToken public immutable oToken;
+    IOptionsToken public immutable oToken;
 
     /// @notice The fee addresses which receive any tokens paid during redemption
     address[] public feeRecipients;
@@ -29,11 +29,12 @@ abstract contract BaseExercise is IExercise, Owned {
     /// feeBPS[n] * fee / 10_000 in fees
     uint256[] public feeBPS;
 
-    constructor (OptionsToken _oToken, address[] memory _feeRecipients, uint256[] memory _feeBPS) {
+    constructor (IOptionsToken _oToken, address[] memory _feeRecipients, uint256[] memory _feeBPS) {
         oToken = _oToken;
         if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();
         feeRecipients = _feeRecipients;
         feeBPS = _feeBPS;
+        emit SetFees(_feeRecipients, _feeBPS);
     }
 
     modifier onlyOToken() {
@@ -47,10 +48,11 @@ abstract contract BaseExercise is IExercise, Owned {
     /// @param amount Amount of tokens being exercised
     /// @param recipient Wallet that will receive the rewards for exercising the oTokens
     /// @param params Extraneous parameters that the function may use - abi.encoded struct
+    /// @dev Additional returns are reserved for future use
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         virtual
-        returns (bytes memory data);
+        returns (uint paymentAmount, address, uint256, uint256);
     
     function setFees(address[] memory _feeRecipients, uint256[] memory _feeBPS) external onlyOwner {
         if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();

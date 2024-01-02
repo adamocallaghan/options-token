@@ -1,2 +1,4 @@
 create3-factory/=lib/create3-factory/src/
+oz-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+oz/=lib/openzeppelin-contracts/contracts/
 

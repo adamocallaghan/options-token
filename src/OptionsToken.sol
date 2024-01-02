@@ -1,59 +1,78 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.13;
 
-import {Owned} from "solmate/auth/Owned.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {OwnableUpgradeable} from "oz-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC20Upgradeable} from "oz-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {UUPSUpgradeable} from "oz-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {IOptionsToken} from "./interfaces/IOptionsToken.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
-import {IERC20Mintable} from "./interfaces/IERC20Mintable.sol";
 import {IExercise} from "./interfaces/IExercise.sol";
 
 /// @title Options Token
-/// @author zefram.eth
+/// @author Eidolon & lookee
 /// @notice Options token representing the right to perform an advantageous action,
 /// such as purchasing the underlying token at a discount to the market price.
-contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
+contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
 
     error OptionsToken__NotTokenAdmin();
-    error OptionsToken__NotOption();
+    error OptionsToken__NotExerciseContract();
+    error Upgradeable__Unauthorized();
 
     /// -----------------------------------------------------------------------
     /// Events
     /// -----------------------------------------------------------------------
 
-    event Exercise(address indexed sender, address indexed recipient, uint256 amount, bytes parameters);
+    event Exercise(
+        address indexed sender,
+        address indexed recipient,
+        uint256 amount,
+        address data0,
+        uint256 data1,
+        uint256 data2
+    );
     event SetOracle(IOracle indexed newOracle);
     event SetTreasury(address indexed newTreasury);
-    event SetOption(address indexed option, bool isOption);
+    event SetExerciseContract(address indexed _address, bool _isExercise);
 
     /// -----------------------------------------------------------------------
-    /// Immutable parameters
+    /// Constant parameters
     /// -----------------------------------------------------------------------
 
-    /// @notice The contract that has the right to mint options tokens
-    address public immutable tokenAdmin;
+    uint256 public constant UPGRADE_TIMELOCK = 48 hours;
+    uint256 public constant FUTURE_NEXT_PROPOSAL_TIME = 365 days * 100;
 
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
 
-    mapping (address => bool) public isOption;
+    /// @notice The contract that has the right to mint options tokens
+    address public tokenAdmin;
+
+    mapping (address => bool) public isExerciseContract;
+    uint256 public upgradeProposalTime;
+
+    constructor () initializer {}
 
     /// -----------------------------------------------------------------------
-    /// Constructor
+    /// Initializer
     /// -----------------------------------------------------------------------
 
-    constructor(
+    function initialize(
         string memory name_,
         string memory symbol_,
         address owner_,
         address tokenAdmin_
-    ) ERC20(name_, symbol_, 18) Owned(owner_) {
+    ) external initializer {
+        __UUPSUpgradeable_init();
+        __ERC20_init(name_, symbol_);
+        __Ownable_init(owner_);
         tokenAdmin = tokenAdmin_;
+
+        _clearUpgradeCooldown();
     }
 
     /// -----------------------------------------------------------------------
@@ -91,7 +110,7 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
         virtual
-        returns (bytes memory)
+        returns (uint256 paymentAmount, address, uint256, uint256) // misc data
     {
         return _exercise(amount, recipient, option, params);
     }
@@ -102,10 +121,10 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
 
     /// @notice Adds a new Exercise contract to the available options.
     /// @param _address Address of the Exercise contract, that implements BaseExercise.
-    /// @param _isOption Whether oToken holders should be allowed to exercise using this option.
-    function setOption(address _address, bool _isOption) external onlyOwner {
-        isOption[_address] = _isOption;
-        emit SetOption(_address, _isOption);
+    /// @param _isExercise Whether oToken holders should be allowed to exercise using this option.
+    function setExerciseContract(address _address, bool _isExercise) external onlyOwner {
+        isExerciseContract[_address] = _isExercise;
+        emit SetExerciseContract(_address, _isExercise);
     }
 
     /// -----------------------------------------------------------------------
@@ -115,22 +134,73 @@ contract OptionsToken is IOptionsToken, ERC20, Owned, IERC20Mintable {
     function _exercise(uint256 amount, address recipient, address option, bytes calldata params)
         internal
         virtual
-        returns (bytes memory data)
+        returns (uint256 paymentAmount, address data0, uint256 data1, uint256 data2) // misc data
     {
         // skip if amount is zero
-        if (amount == 0) return new bytes(0);
+        if (amount == 0) return (0, address(0), 0, 0);
 
         // skip if option is not active
-        if (!isOption[option]) revert OptionsToken__NotOption();
+        if (!isExerciseContract[option]) revert OptionsToken__NotExerciseContract();
 
-        // transfer options tokens from msg.sender to address(0)
-        // we transfer instead of burn because TokenAdmin cares about totalSupply
-        // which we don't want to change in order to follow the emission schedule
-        transfer(address(0), amount);
+        // burn options tokens
+        _burn(msg.sender, amount);
 
         // give rewards to recipient
-        data = IExercise(option).exercise(msg.sender, amount, recipient, params);
+        (
+            paymentAmount,
+            data0,
+            data1,
+            data2
+        ) = IExercise(option).exercise(msg.sender, amount, recipient, params);
 
-        emit Exercise(msg.sender, recipient, amount, params);
+        // emit event
+        emit Exercise(
+            msg.sender,
+            recipient,
+            amount,
+            data0,
+            data1,
+            data2
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// UUPS functions
+    /// -----------------------------------------------------------------------
+
+    /**
+     * @dev This function must be called prior to upgrading the implementation.
+     *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
+     *      Strategists and roles with higher privilege can initiate this cooldown.
+     */
+    function initiateUpgradeCooldown() onlyOwner external {
+        upgradeProposalTime = block.timestamp;
+    }
+
+    /**
+     * @dev This function is called:
+     *      - in initialize()
+     *      - as part of a successful upgrade
+     *      - manually to clear the upgrade cooldown.
+     * Guardian and roles with higher privilege can clear this cooldown.
+     */
+    function _clearUpgradeCooldown() internal {
+        upgradeProposalTime = block.timestamp + FUTURE_NEXT_PROPOSAL_TIME;
+    }
+
+    function clearUpgradeCooldown() onlyOwner external {
+        _clearUpgradeCooldown();
+    }
+
+    /**
+     * @dev This function must be overriden simply for access control purposes.
+     *      Only DEFAULT_ADMIN_ROLE can upgrade the implementation once the timelock
+     *      has passed.
+     */
+    function _authorizeUpgrade(address) onlyOwner internal override {
+        require(
+            upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp, "Upgrade cooldown not initiated or still ongoing"
+        );
+        _clearUpgradeCooldown();
     }
 }

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.13;
 
-interface IOptionsToken {
+import {IERC20Mintable} from "./IERC20Mintable.sol";
+
+interface IOptionsToken is IERC20Mintable {
     function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
-        returns (bytes memory);
+        returns (uint256 paymentAmount, address, uint256, uint256);
 
-    function setOption(address _address, bool _isOption) external;
+    function setExerciseContract(address _address, bool _isExercise) external;
 
-    function isOption(address) external returns (bool);
+    function isExerciseContract(address) external returns (bool);
 }

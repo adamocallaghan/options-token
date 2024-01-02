@@ -15,10 +15,6 @@ struct DiscountExerciseParams {
     uint256 deadline;
 }
 
-struct DiscountExerciseReturnData {
-    uint256 paymentAmount;
-}
-
 /// @title Options Token Exercise Contract
 /// @author @bigbadbeard, @lookee, @eidolon
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -32,11 +28,19 @@ contract DiscountExercise is BaseExercise {
     /// Errors
     error Exercise__SlippageTooHigh();
     error Exercise__PastDeadline();
+    error Exercise__MultiplierOutOfRange();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetTreasury(address indexed newTreasury);
+    event SetMultiplier(uint256 indexed newMultiplier);
+
+    /// Constants
+
+    /// @notice The denominator for converting the multiplier into a decimal number.
+    /// i.e. multiplier uses 4 decimals.
+    uint256 internal constant MULTIPLIER_DENOM = 10000;
 
     /// Immutable parameters
 
@@ -52,6 +56,10 @@ contract DiscountExercise is BaseExercise {
     /// the underlying token while exercising options (the strike price)
     IOracle public oracle;
 
+    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
+    /// the options token. Uses 4 decimals.
+    uint256 public multiplier;
+
     /// @notice The treasury address which receives tokens paid during redemption
     address public treasury;
 
@@ -61,14 +69,17 @@ contract DiscountExercise is BaseExercise {
         ERC20 paymentToken_,
         ERC20 underlyingToken_,
         IOracle oracle_,
+        uint256 multiplier_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
         oracle = oracle_;
+        multiplier = multiplier_;
 
         emit SetOracle(oracle_);
+        emit SetMultiplier(multiplier_);
     }
 
     /// External functions
@@ -84,7 +95,7 @@ contract DiscountExercise is BaseExercise {
         virtual
         override
         onlyOToken
-        returns (bytes memory data)
+        returns (uint paymentAmount, address, uint256, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -98,32 +109,39 @@ contract DiscountExercise is BaseExercise {
         emit SetOracle(oracle_);
     }
 
+    /// @notice Sets the discount multiplier.
+    /// @param multiplier_ The new multiplier
+    function setMultiplier(uint256 multiplier_) external onlyOwner {
+        if (
+            multiplier_ > MULTIPLIER_DENOM * 2 // over 200%
+            || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
+        ) revert Exercise__MultiplierOutOfRange();
+        multiplier = multiplier_;
+        emit SetMultiplier(multiplier_);
+    }
+
     /// Internal functions
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
         virtual
-        returns (bytes memory data)
+        returns (uint256 paymentAmount, address, uint256, uint256) 
     {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
 
         if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
 
+        // apply multiplier to price
+        uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
         // transfer payment tokens from user to the treasury
         // this price includes the discount
-        uint256 paymentAmount = amount.mulWadUp(oracle.getPrice());
+        paymentAmount = amount.mulWadUp(price);
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
 
         distributeFeesFrom(paymentAmount, paymentToken, from);
         // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);
-
-        data = abi.encode(
-            DiscountExerciseReturnData({
-                paymentAmount: paymentAmount
-            })
-        );
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
