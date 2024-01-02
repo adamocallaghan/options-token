@@ -20,7 +20,7 @@ struct DiscountExerciseParams {
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market price.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract DiscountExercise is BaseExercise, Owned {
+contract DiscountExercise is BaseExercise {
     /// Library usage
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
@@ -70,16 +70,15 @@ contract DiscountExercise is BaseExercise, Owned {
         ERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
-        address treasury_
-    ) BaseExercise(oToken_) Owned(owner_) {
+        address[] memory feeRecipients_,
+        uint256[] memory feeBPS_
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
         oracle = oracle_;
         multiplier = multiplier_;
-        treasury = treasury_;
 
         emit SetOracle(oracle_);
-        emit SetTreasury(treasury_);
         emit SetMultiplier(multiplier_);
     }
 
@@ -121,13 +120,6 @@ contract DiscountExercise is BaseExercise, Owned {
         emit SetMultiplier(multiplier_);
     }
 
-    /// @notice Sets the treasury address. Only callable by the owner.
-    /// @param treasury_ The new treasury address
-    function setTreasury(address treasury_) external onlyOwner {
-        treasury = treasury_;
-        emit SetTreasury(treasury_);
-    }
-
     /// Internal functions
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
@@ -146,8 +138,8 @@ contract DiscountExercise is BaseExercise, Owned {
         // this price includes the discount
         paymentAmount = amount.mulWadUp(price);
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
-        paymentToken.safeTransferFrom(from, treasury, paymentAmount);
 
+        distributeFeesFrom(paymentAmount, paymentToken, from);
         // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);
 
