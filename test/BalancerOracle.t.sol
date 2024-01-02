@@ -83,7 +83,7 @@ contract BalancerOracleTest is Test {
         uint priceToken0 = oracleToken0.getPrice();
         uint priceToken1 = oracleToken1.getPrice();
 
-        assertEq(priceToken1, uint256(1e18).divWadDown(priceToken0), "incorrect price"); // 1%
+        assertEq(priceToken1, uint256(1e18).divWadUp(priceToken0), "incorrect price"); // 1%
     }
 
 

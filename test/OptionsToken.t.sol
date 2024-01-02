@@ -113,8 +113,7 @@ contract OptionsTokenTest is Test {
 
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(address(this)), 0, 18, "user still has options tokens");
-        assertEqDecimal(optionsToken.balanceOf(address(0x1)), amount, 18, "address(0) didn't get options tokens");
-        assertEqDecimal(optionsToken.totalSupply(), amount, 18, "total supply changed");
+        assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
 
         // verify payment tokens were transferred
         assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
