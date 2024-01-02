@@ -62,7 +62,7 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from a token holder who has approved
-    function distributeFeesFrom(uint256 totalAmount, ERC20 token, address from) internal virtual{
+    function distributeFeesFrom(uint256 totalAmount, ERC20 token, address from) internal virtual {
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransferFrom(from, feeRecipients[i], feeAmount);
@@ -73,7 +73,7 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from token balance of exercise contract
-    function distributeFees(uint256 totalAmount, ERC20 token, address from) internal virtual{
+    function distributeFees(uint256 totalAmount, ERC20 token) internal virtual {
         for (uint256 i = 0; i < feeRecipients.length; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransfer(feeRecipients[i], feeAmount);
