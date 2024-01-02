@@ -64,12 +64,11 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     function initialize(
         string memory name_,
         string memory symbol_,
-        address owner_,
         address tokenAdmin_
     ) external initializer {
         __UUPSUpgradeable_init();
         __ERC20_init(name_, symbol_);
-        __Ownable_init(owner_);
+        __Ownable_init();
         tokenAdmin = tokenAdmin_;
 
         _clearUpgradeCooldown();

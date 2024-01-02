@@ -60,7 +60,8 @@ contract OptionsTokenTest is Test {
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), "");
         optionsToken = OptionsToken(address(proxy));
-        optionsToken.initialize("TIT Call Option Token", "oTIT", owner, tokenAdmin);
+        optionsToken.initialize("TIT Call Option Token", "oTIT", tokenAdmin);
+        optionsToken.transferOwnership(owner);
 
         address[] memory tokens = new address[](2);
         tokens[0] = underlyingToken;
