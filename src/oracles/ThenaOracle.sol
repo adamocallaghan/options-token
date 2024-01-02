@@ -8,10 +8,10 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {IThenaPair} from "../interfaces/IThenaPair.sol";
 
 /// @title Oracle using Thena TWAP oracle as data source
-/// @author zefram.eth/lookee
+/// @author zefram.eth/lookee/Eidolon
 /// @notice The oracle contract that provides the current price to purchase
 /// the underlying token while exercising options. Uses Thena TWAP oracle
-/// as data source, and then applies a multiplier & lower bound.
+/// as data source, and then applies a lower bound.
 /// Furthermore, the payment token and the underlying token must use 18 decimals.
 /// This is because the Thena oracle returns the TWAP value in 18 decimals
 /// and the OptionsToken contract also expects 18 decimals.
@@ -34,15 +34,7 @@ contract ThenaOracle is IOracle, Owned {
     /// Events
     /// -----------------------------------------------------------------------
 
-    event SetParams(bool isToken0, uint16 multiplier, uint56 secs, uint128 minPrice);
-
-    /// -----------------------------------------------------------------------
-    /// Constants
-    /// -----------------------------------------------------------------------
-
-    /// @notice The denominator for converting the multiplier into a decimal number.
-    /// i.e. multiplier uses 4 decimals.
-    uint256 internal constant MULTIPLIER_DENOM = 10000;
+    event SetParams(uint56 secs, uint128 minPrice);
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
@@ -54,10 +46,6 @@ contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
-
-    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
-    uint16 public multiplier;
 
     /// @notice The size of the window to take the TWAP value over in seconds.
     uint56 public secs;
@@ -78,18 +66,16 @@ contract ThenaOracle is IOracle, Owned {
         IThenaPair thenaPair_,
         address token,
         address owner_,
-        uint16 multiplier_,
         uint56 secs_,
         uint128 minPrice_
     ) Owned(owner_) {
         if (thenaPair_.stable()) revert ThenaOracle__StablePairsUnsupported();
         thenaPair = thenaPair_;
         isToken0 = thenaPair_.token0() == token;
-        multiplier = multiplier_;
         secs = secs_;
         minPrice = minPrice_;
 
-        emit SetParams(isToken0, multiplier_, secs_, minPrice_);
+        emit SetParams(secs_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------
@@ -102,7 +88,6 @@ contract ThenaOracle is IOracle, Owned {
         /// Storage loads
         /// -----------------------------------------------------------------------
 
-        uint256 multiplier_ = multiplier;
         uint256 secs_ = secs;
 
         /// -----------------------------------------------------------------------
@@ -142,9 +127,6 @@ contract ThenaOracle is IOracle, Owned {
         }
 
         if (price < minPrice) revert ThenaOracle__BelowMinPrice();
-
-        // apply multiplier to price
-        price = price.mulDivUp(multiplier_, MULTIPLIER_DENOM);
     }
 
     /// -----------------------------------------------------------------------
@@ -152,18 +134,13 @@ contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice Updates the oracle parameters. Only callable by the owner.
-    /// @param token Target token used for pricing.
-    /// @param multiplier_ The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
     /// @param secs_ The size of the window to take the TWAP value over in seconds.
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(address token, uint16 multiplier_, uint56 secs_, uint128 minPrice_) external onlyOwner {
-        isToken0 = thenaPair.token0() == token;
-        multiplier = multiplier_;
+    function setParams(uint56 secs_, uint128 minPrice_) external onlyOwner {
         secs = secs_;
         minPrice = minPrice_;
-        emit SetParams(isToken0, multiplier_, secs_, minPrice_);
+        emit SetParams(secs_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------

@@ -12,7 +12,6 @@ struct Params {
     IThenaPair pair;
     address token;
     address owner;
-    uint16 multiplier;
     uint32 secs;
     uint128 minPrice;
 }
@@ -36,7 +35,7 @@ contract ThenaOracleTest is Test {
     Params _default;
 
     function setUp() public {
-        _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 10000, 30 minutes, 1000);
+        _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 30 minutes, 1000);
         bscFork = vm.createSelectFork(BSC_RPC_URL, FORK_BLOCK);
     }
 
@@ -46,7 +45,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
@@ -63,7 +61,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             IThenaPair(_default.pair).token0(),
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
@@ -72,7 +69,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             IThenaPair(_default.pair).token1(),
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
@@ -83,41 +79,11 @@ contract ThenaOracleTest is Test {
         assertApproxEqAbs(priceToken1, uint256(1e18).divWadDown(priceToken0), 1, "incorrect price"); // 1%
     }
 
-    function test_priceMultiplier(uint multiplier) public {
-        multiplier = bound(multiplier, 0, 10000);
-
-        ThenaOracle oracle0 = new ThenaOracle(
-            _default.pair,
-            _default.token,
-            _default.owner,
-            _default.multiplier,
-            _default.secs,
-            _default.minPrice
-        );
-        
-        ThenaOracle oracle1 = new ThenaOracle(
-            _default.pair,
-            _default.token,
-            _default.owner,
-            uint16(multiplier),
-            _default.secs,
-            _default.minPrice
-        );
-
-        uint price0 = oracle0.getPrice();
-        uint price1 = oracle1.getPrice();
-
-        uint expectedPrice = price0.mulDivDown(multiplier, MULTIPLIER_DENOM);
-
-        assertApproxEqAbs(price1, expectedPrice, 1, "incorrect price multiplier"); // 1%
-    }
-
     function test_revertMinPrice() public {
         ThenaOracle oracle = new ThenaOracle(
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
@@ -150,7 +116,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             uint128(price)
         );
@@ -166,7 +131,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
@@ -203,7 +167,6 @@ contract ThenaOracleTest is Test {
             _default.pair,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.minPrice
         );
