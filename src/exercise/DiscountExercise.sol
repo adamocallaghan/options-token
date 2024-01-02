@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {IERC20} from "oz/token/ERC20/IERC20.sol";
+import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
@@ -22,7 +22,7 @@ struct DiscountExerciseParams {
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
 contract DiscountExercise is BaseExercise {
     /// Library usage
-    using SafeTransferLib for ERC20;
+    using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
 
     /// Errors
@@ -45,10 +45,10 @@ contract DiscountExercise is BaseExercise {
     /// Immutable parameters
 
     /// @notice The token paid by the options token holder during redemption
-    ERC20 public immutable paymentToken;
+    IERC20 public immutable paymentToken;
 
     /// @notice The underlying token purchased during redemption
-    ERC20 public immutable underlyingToken;
+    IERC20 public immutable underlyingToken;
 
     /// Storage variables
 
@@ -66,8 +66,8 @@ contract DiscountExercise is BaseExercise {
     constructor(
         OptionsToken oToken_,
         address owner_,
-        ERC20 paymentToken_,
-        ERC20 underlyingToken_,
+        IERC20 paymentToken_,
+        IERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
         address[] memory feeRecipients_,

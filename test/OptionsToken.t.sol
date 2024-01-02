@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {OptionsToken} from "../src/OptionsToken.sol";
@@ -71,7 +71,7 @@ contract OptionsTokenTest is Test {
         oracle =
             new BalancerOracle(balancerTwapOracle, underlyingToken, owner, ORACLE_SECS, ORACLE_AGO, ORACLE_MIN_PRICE);
 
-        exerciser = new DiscountExercise(optionsToken, owner, paymentToken, ERC20(underlyingToken), oracle, PRICE_MULTIPLIER, feeRecipients_, feeBPS_);
+        exerciser = new DiscountExercise(optionsToken, owner, IERC20(address(paymentToken)), IERC20(underlyingToken), oracle, PRICE_MULTIPLIER, feeRecipients_, feeBPS_);
 
         TestERC20(underlyingToken).mint(address(exerciser), 1e20 ether);
 

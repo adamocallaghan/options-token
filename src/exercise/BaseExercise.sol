@@ -3,13 +3,13 @@ pragma solidity ^0.8.13;
 
 import {IExercise} from "../interfaces/IExercise.sol";
 import {IOptionsToken} from "../OptionsToken.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
 
 abstract contract BaseExercise is IExercise, Owned {
-    using SafeTransferLib for ERC20;
+    using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
 
     error Exercise__NotOToken();
@@ -62,7 +62,7 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from a token holder who has approved
-    function distributeFeesFrom(uint256 totalAmount, ERC20 token, address from) internal virtual {
+    function distributeFeesFrom(uint256 totalAmount, IERC20 token, address from) internal virtual {
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransferFrom(from, feeRecipients[i], feeAmount);
@@ -73,7 +73,7 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from token balance of exercise contract
-    function distributeFees(uint256 totalAmount, ERC20 token) internal virtual {
+    function distributeFees(uint256 totalAmount, IERC20 token) internal virtual {
         for (uint256 i = 0; i < feeRecipients.length; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransfer(feeRecipients[i], feeAmount);
