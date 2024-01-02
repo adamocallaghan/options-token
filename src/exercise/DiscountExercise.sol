@@ -145,4 +145,14 @@ contract DiscountExercise is BaseExercise {
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
+
+    /// View functions
+
+    /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
+    /// @param amount The amount of options tokens to exercise
+    function getPaymentAmount(
+        uint256 amount
+    ) external view returns (uint256 paymentAmount) {
+        paymentAmount = amount.mulWadUp(oracle.getPrice());
+    }
 }
