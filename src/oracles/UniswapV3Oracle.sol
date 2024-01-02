@@ -5,18 +5,19 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
-import {IVault} from "../interfaces/IBalancerVault.sol";
-import {IBalancerTwapOracle} from "../interfaces/IBalancerTwapOracle.sol";
 
-/// @title Oracle using Balancer TWAP oracle as data source
-/// @author zefram.eth
+import {IUniswapV3Pool} from "v3-core/interfaces/IUniswapV3Pool.sol";
+import {TickMath} from "v3-core/libraries/TickMath.sol";
+import {FullMath} from "v3-core/libraries/FullMath.sol";
+
+/// @title Oracle using Uniswap TWAP oracle as data source
+/// @author zefram.eth & lookeey
 /// @notice The oracle contract that provides the current price to purchase
-/// the underlying token while exercising options. Uses Balancer TWAP oracle
-/// as data source.
-/// @dev IMPORTANT: The payment token and the underlying token must use 18 decimals.
-/// This is because the Balancer oracle returns the TWAP value in 18 decimals
-/// and the OptionsToken contract also expects 18 decimals.
-contract BalancerOracle is IOracle, Owned {
+/// the underlying token while exercising options. Uses UniswapV3 TWAP oracle
+/// as data source, and then applies a multiplier & lower bound.
+/// @dev IMPORTANT: This oracle assumes both tokens have 18 decimals, and
+/// returns the price with 18 decimals.
+contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Library usage
     /// -----------------------------------------------------------------------
@@ -27,8 +28,7 @@ contract BalancerOracle is IOracle, Owned {
     /// Errors
     /// -----------------------------------------------------------------------
 
-    error BalancerOracle__TWAPOracleNotReady();
-    error BalancerOracle__BelowMinPrice();
+    error UniswapOracle__BelowMinPrice();
 
     /// -----------------------------------------------------------------------
     /// Events
@@ -40,46 +40,42 @@ contract BalancerOracle is IOracle, Owned {
     /// Immutable parameters
     /// -----------------------------------------------------------------------
 
-    /// @notice The Balancer TWAP oracle contract (usually a pool with oracle support)
-    IBalancerTwapOracle public immutable balancerTwapOracle;
-
-    /// @notice Whether the price of token0 should be returned (in units of token1).
-    /// If false, the price of token1 is returned.
-    bool public immutable isToken0;
+    /// @notice The UniswapV3 Pool contract (provides the oracle)
+    IUniswapV3Pool public immutable uniswapPool;
 
     /// -----------------------------------------------------------------------
     /// Storage variables
     /// -----------------------------------------------------------------------
 
     /// @notice The size of the window to take the TWAP value over in seconds.
-    uint56 public secs;
+    uint32 public secs;
 
     /// @notice The number of seconds in the past to take the TWAP from. The window
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
-    uint56 public ago;
+    uint32 public ago;
 
     /// @notice The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
     uint128 public minPrice;
+
+    /// @notice Whether the price of token0 should be returned (in units of token1).
+    /// If false, the price is returned in units of token0.
+    bool public isToken0;
 
     /// -----------------------------------------------------------------------
     /// Constructor
     /// -----------------------------------------------------------------------
 
     constructor(
-        IBalancerTwapOracle balancerTwapOracle_,
+        IUniswapV3Pool uniswapPool_,
         address token,
         address owner_,
-        uint56 secs_,
-        uint56 ago_,
+        uint32 secs_,
+        uint32 ago_,
         uint128 minPrice_
     ) Owned(owner_) {
-        balancerTwapOracle = balancerTwapOracle_;
-
-        IVault vault = balancerTwapOracle.getVault();
-        (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle_.getPoolId());
-        isToken0 = poolTokens[0] == token;
-
+        uniswapPool = uniswapPool_;
+        isToken0 = token == uniswapPool_.token0();
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
@@ -94,45 +90,47 @@ contract BalancerOracle is IOracle, Owned {
     /// @inheritdoc IOracle
     function getPrice() external view override returns (uint256 price) {
         /// -----------------------------------------------------------------------
-        /// Storage loads
-        /// -----------------------------------------------------------------------
-
-        uint256 secs_ = secs;
-        uint256 ago_ = ago;
-        uint256 minPrice_ = minPrice;
-
-        /// -----------------------------------------------------------------------
         /// Validation
         /// -----------------------------------------------------------------------
 
-        // ensure the Balancer oracle can return a TWAP value for the specified window
-        {
-            uint256 largestSafeQueryWindow = balancerTwapOracle.getLargestSafeQueryWindow();
-            if (secs_ + ago_ > largestSafeQueryWindow) revert BalancerOracle__TWAPOracleNotReady();
-        }
+        // The UniswapV3 pool reverts on invalid TWAP queries, so we don't need to
 
         /// -----------------------------------------------------------------------
         /// Computation
         /// -----------------------------------------------------------------------
 
-        // query Balancer oracle to get TWAP value
+        // query Uniswap oracle to get TWAP tick
         {
-            IBalancerTwapOracle.OracleAverageQuery[] memory queries = new IBalancerTwapOracle.OracleAverageQuery[](1);
-            queries[0] = IBalancerTwapOracle.OracleAverageQuery({
-                variable: IBalancerTwapOracle.Variable.PAIR_PRICE,
-                secs: secs_,
-                ago: ago_
-            });
-            price = balancerTwapOracle.getTimeWeightedAverage(queries)[0];
+            uint32 _twapDuration = secs;
+            uint32 _twapAgo = ago;
+            uint32[] memory secondsAgo = new uint32[](2);
+            secondsAgo[0] = _twapDuration + _twapAgo;
+            secondsAgo[1] = _twapAgo;
+
+            (int56[] memory tickCumulatives,) = uniswapPool.observe(secondsAgo);
+            int24 tick = int24((tickCumulatives[1] - tickCumulatives[0]) / int56(int32(_twapDuration)));
+
+            uint256 decimalPrecision = 1e18;
+
+            // from https://optimistic.etherscan.io/address/0xB210CE856631EeEB767eFa666EC7C1C57738d438#code#F5#L49
+            uint160 sqrtRatioX96 = TickMath.getSqrtRatioAtTick(tick);
+
+            // Calculate quoteAmount with better precision if it doesn't overflow when multiplied by itself
+            if (sqrtRatioX96 <= type(uint128).max) {
+                uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
+                price = isToken0
+                    ? FullMath.mulDiv(ratioX192, decimalPrecision, 1 << 192)
+                    : FullMath.mulDiv(1 << 192, decimalPrecision, ratioX192);
+            } else {
+                uint256 ratioX128 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, 1 << 64);
+                price = isToken0
+                    ? FullMath.mulDiv(ratioX128, decimalPrecision, 1 << 128)
+                    : FullMath.mulDiv(1 << 128, decimalPrecision, ratioX128);
+            }
         }
 
-        if (isToken0) {
-            // convert price to token0
-            price = uint256(1e18).divWadUp(price);
-        }
-
-        // apply min price
-        if (price < minPrice_) revert BalancerOracle__BelowMinPrice();
+        // apply minimum price
+        if (price < minPrice) revert UniswapOracle__BelowMinPrice();
     }
 
     /// -----------------------------------------------------------------------
@@ -145,7 +143,10 @@ contract BalancerOracle is IOracle, Owned {
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(uint56 secs_, uint56 ago_, uint128 minPrice_) external onlyOwner {
+    function setParams(uint32 secs_, uint32 ago_, uint128 minPrice_)
+        external
+        onlyOwner
+    {
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
