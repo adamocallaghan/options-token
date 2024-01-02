@@ -16,7 +16,6 @@ struct Params {
     IUniswapV3Pool pool;
     address token;
     address owner;
-    uint16 multiplier;
     uint32 secs;
     uint32 ago;
     uint128 minPrice;
@@ -52,7 +51,7 @@ contract UniswapOracleTest is Test {
         mockV3Pool.setCumulatives(sampleCumulatives);
         mockV3Pool.setToken0(OP_ADDRESS);
 
-        _default = Params(IUniswapV3Pool(WETH_OP_POOL_ADDRESS), OP_ADDRESS, address(this), 10000, 30 minutes, 0, 1000);
+        _default = Params(IUniswapV3Pool(WETH_OP_POOL_ADDRESS), OP_ADDRESS, address(this), 30 minutes, 0, 1000);
         swapRouter = ISwapRouter(SWAP_ROUTER_ADDRESS);
     }
 
@@ -65,7 +64,6 @@ contract UniswapOracleTest is Test {
             mockV3Pool,
             OP_ADDRESS,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -80,7 +78,6 @@ contract UniswapOracleTest is Test {
             mockV3Pool,
             address(0),
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -89,23 +86,6 @@ contract UniswapOracleTest is Test {
         uint256 price = oracle.getPrice();
         uint256 expectedPriceToken1 = price = FixedPointMathLib.divWadUp(1e18, price);
         assertEq(price, expectedPriceToken1);
-    }
-
-    function test_PriceToken0Multiplier() public {
-        uint16 multiplier = 5000;
-        UniswapV3Oracle oracle = new UniswapV3Oracle(
-            mockV3Pool,
-            _default.token,
-            _default.owner,
-            multiplier,
-            _default.secs,
-            _default.ago,
-            _default.minPrice
-        );
-
-        uint256 price = oracle.getPrice();
-        uint256 expectedPriceWithMultiplier = FixedPointMathLib.mulDivUp(expectedPriceToken0, multiplier, 10000);
-        assertEq(price, expectedPriceWithMultiplier);
     }
 
     /// ----------------------------------------------------------------------
@@ -119,7 +99,6 @@ contract UniswapOracleTest is Test {
             _default.pool,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -139,7 +118,6 @@ contract UniswapOracleTest is Test {
             _default.pool,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -170,7 +148,6 @@ contract UniswapOracleTest is Test {
             _default.pool,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             uint128(price)
@@ -189,7 +166,6 @@ contract UniswapOracleTest is Test {
             _default.pool,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice
@@ -232,7 +208,6 @@ contract UniswapOracleTest is Test {
             _default.pool,
             _default.token,
             _default.owner,
-            _default.multiplier,
             _default.secs,
             _default.ago,
             _default.minPrice

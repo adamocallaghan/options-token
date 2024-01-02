@@ -34,15 +34,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Events
     /// -----------------------------------------------------------------------
 
-    event SetParams(bool isToken0, uint16 multiplier, uint56 secs, uint56 ago, uint128 minPrice);
-
-    /// -----------------------------------------------------------------------
-    /// Constants
-    /// -----------------------------------------------------------------------
-
-    /// @notice The denominator for converting the multiplier into a decimal number.
-    /// i.e. multiplier uses 4 decimals.
-    uint256 internal constant MULTIPLIER_DENOM = 10000;
+    event SetParams(uint56 secs, uint56 ago, uint128 minPrice);
 
     /// -----------------------------------------------------------------------
     /// Immutable parameters
@@ -55,10 +47,6 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Storage variables
     /// -----------------------------------------------------------------------
 
-    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
-    uint16 public multiplier;
-
     /// @notice The size of the window to take the TWAP value over in seconds.
     uint32 public secs;
 
@@ -70,8 +58,8 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// price to mitigate potential attacks on the TWAP oracle.
     uint128 public minPrice;
 
-    /// @notice Whether the price should be returned in terms of token0.
-    /// If false, the price is returned in terms of token1.
+    /// @notice Whether the price of token0 should be returned (in units of token1).
+    /// If false, the price is returned in units of token0.
     bool public isToken0;
 
     /// -----------------------------------------------------------------------
@@ -82,19 +70,17 @@ contract UniswapV3Oracle is IOracle, Owned {
         IUniswapV3Pool uniswapPool_,
         address token,
         address owner_,
-        uint16 multiplier_,
         uint32 secs_,
         uint32 ago_,
         uint128 minPrice_
     ) Owned(owner_) {
         uniswapPool = uniswapPool_;
         isToken0 = token == uniswapPool_.token0();
-        multiplier = multiplier_;
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
 
-        emit SetParams(isToken0, multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(secs_, ago_, minPrice_);
     }
 
     /// -----------------------------------------------------------------------
@@ -103,12 +89,6 @@ contract UniswapV3Oracle is IOracle, Owned {
 
     /// @inheritdoc IOracle
     function getPrice() external view override returns (uint256 price) {
-        /// -----------------------------------------------------------------------
-        /// Storage loads
-        /// -----------------------------------------------------------------------
-
-        uint256 minPrice_ = minPrice;
-
         /// -----------------------------------------------------------------------
         /// Validation
         /// -----------------------------------------------------------------------
@@ -150,10 +130,7 @@ contract UniswapV3Oracle is IOracle, Owned {
         }
 
         // apply minimum price
-        if (price < minPrice_) revert UniswapOracle__BelowMinPrice();
-
-        // apply multiplier to price
-        price = price.mulDivUp(multiplier, MULTIPLIER_DENOM);
+        if (price < minPrice) revert UniswapOracle__BelowMinPrice();
     }
 
     /// -----------------------------------------------------------------------
@@ -161,23 +138,18 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     /// @notice Updates the oracle parameters. Only callable by the owner.
-    /// @param token Target token used for pricing.
-    /// @param multiplier_ The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
     /// @param secs_ The size of the window to take the TWAP value over in seconds.
     /// @param ago_ The number of seconds in the past to take the TWAP from. The window
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(address token, uint16 multiplier_, uint32 secs_, uint32 ago_, uint128 minPrice_)
+    function setParams(uint32 secs_, uint32 ago_, uint128 minPrice_)
         external
         onlyOwner
     {
-        isToken0 = token == uniswapPool.token0();
-        multiplier = multiplier_;
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;
-        emit SetParams(isToken0, multiplier_, secs_, ago_, minPrice_);
+        emit SetParams(secs_, ago_, minPrice_);
     }
 }
