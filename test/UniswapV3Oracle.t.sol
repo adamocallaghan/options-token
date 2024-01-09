@@ -34,7 +34,7 @@ contract UniswapOracleTest is Test {
 
     string OPTIMISM_RPC_URL = vm.envString("OPTIMISM_RPC_URL");
     uint32 FORK_BLOCK = 112198905;
-    
+
     address SWAP_ROUTER_ADDRESS = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     address WETH_OP_POOL_ADDRESS = 0x68F5C0A2DE713a54991E01858Fd27a3832401849;
     address OP_ADDRESS = 0x4200000000000000000000000000000000000042;
@@ -104,7 +104,7 @@ contract UniswapOracleTest is Test {
             _default.minPrice
         );
 
-        uint oraclePrice = oracle.getPrice();
+        uint256 oraclePrice = oracle.getPrice();
 
         (uint160 sqrtRatioX96,,,,,,) = IUniswapV3Pool(WETH_OP_POOL_ADDRESS).slot0();
         uint256 spotPrice = computePriceFromX96(sqrtRatioX96);
@@ -129,17 +129,16 @@ contract UniswapOracleTest is Test {
 
         uint256 amountIn = 100000 ether;
         deal(OP_ADDRESS, address(this), amountIn);
-        ISwapRouter.ExactInputSingleParams memory paramsIn =
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: OP_ADDRESS,
-                tokenOut: WETH_ADDRESS,
-                fee: POOL_FEE,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+        ISwapRouter.ExactInputSingleParams memory paramsIn = ISwapRouter.ExactInputSingleParams({
+            tokenIn: OP_ADDRESS,
+            tokenOut: WETH_ADDRESS,
+            fee: POOL_FEE,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
         IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
         swapRouter.exactInputSingle(paramsIn);
 
@@ -181,17 +180,16 @@ contract UniswapOracleTest is Test {
         vm.startPrank(manipulator);
         uint256 reserve = IERC20(OP_ADDRESS).balanceOf(WETH_OP_POOL_ADDRESS);
         uint256 amountIn = reserve / 4;
-        ISwapRouter.ExactInputSingleParams memory paramsIn =
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: OP_ADDRESS,
-                tokenOut: WETH_ADDRESS,
-                fee: POOL_FEE,
-                recipient: manipulator,
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+        ISwapRouter.ExactInputSingleParams memory paramsIn = ISwapRouter.ExactInputSingleParams({
+            tokenIn: OP_ADDRESS,
+            tokenOut: WETH_ADDRESS,
+            fee: POOL_FEE,
+            recipient: manipulator,
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
         IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
         swapRouter.exactInputSingle(paramsIn);
         vm.stopPrank();
@@ -223,17 +221,16 @@ contract UniswapOracleTest is Test {
         vm.startPrank(manipulator);
         uint256 reserve = IERC20(OP_ADDRESS).balanceOf(WETH_OP_POOL_ADDRESS);
         uint256 amountIn = reserve / 4;
-        ISwapRouter.ExactInputSingleParams memory paramsIn =
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: OP_ADDRESS,
-                tokenOut: WETH_ADDRESS,
-                fee: POOL_FEE,
-                recipient: manipulator,
-                deadline: block.timestamp,
-                amountIn: amountIn,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+        ISwapRouter.ExactInputSingleParams memory paramsIn = ISwapRouter.ExactInputSingleParams({
+            tokenIn: OP_ADDRESS,
+            tokenOut: WETH_ADDRESS,
+            fee: POOL_FEE,
+            recipient: manipulator,
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
         IERC20(OP_ADDRESS).approve(address(swapRouter), amountIn);
         swapRouter.exactInputSingle(paramsIn);
         vm.stopPrank();
@@ -244,25 +241,20 @@ contract UniswapOracleTest is Test {
         (uint160 sqrtRatioX96,,,,,,) = IUniswapV3Pool(WETH_OP_POOL_ADDRESS).slot0();
         uint256 spotPrice = computePriceFromX96(sqrtRatioX96);
         uint256 expectedPrice = (price_1 * (_default.secs - skipTime) + spotPrice * skipTime) / _default.secs;
-        
+
         assertApproxEqRel(oracle.getPrice(), expectedPrice, 0.001 ether, "price variance too large");
     }
 
     function computePriceFromX96(uint160 sqrtRatioX96) internal view returns (uint256 price) {
         bool isToken0 = OP_ADDRESS == IUniswapV3Pool(WETH_OP_POOL_ADDRESS).token0();
-        uint decimals = 1e18;
+        uint256 decimals = 1e18;
 
         if (sqrtRatioX96 <= type(uint128).max) {
             uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
-            price = isToken0
-                ? FullMath.mulDiv(ratioX192, decimals, 1 << 192)
-                : FullMath.mulDiv(1 << 192, decimals, ratioX192);
+            price = isToken0 ? FullMath.mulDiv(ratioX192, decimals, 1 << 192) : FullMath.mulDiv(1 << 192, decimals, ratioX192);
         } else {
             uint256 ratioX128 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, 1 << 64);
-            price = isToken0
-                ? FullMath.mulDiv(ratioX128, decimals, 1 << 128)
-                : FullMath.mulDiv(1 << 128, decimals, ratioX128);
+            price = isToken0 ? FullMath.mulDiv(ratioX128, decimals, 1 << 128) : FullMath.mulDiv(1 << 128, decimals, ratioX128);
         }
     }
-
 }

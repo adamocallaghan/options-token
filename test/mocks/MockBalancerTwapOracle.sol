@@ -7,47 +7,37 @@ import {IVault} from "../../src/interfaces/IBalancerTwapOracle.sol";
 contract MockVault is IVault {
     address[] tokens = new address[](2);
 
-    constructor (address[] memory _tokens) {
+    constructor(address[] memory _tokens) {
         tokens = _tokens;
     }
 
-    function joinPool(
-        bytes32 poolId,
-        address sender,
-        address recipient,
-        JoinPoolRequest memory request
-    ) external payable override {}
-
-    function getPool(
-        bytes32 poolId
-    ) external view override returns (address, PoolSpecialization) {}
-
-    function getPoolTokens(
-        bytes32 poolId
-    )
+    function joinPool(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request)
         external
-        view
+        payable
         override
-        returns (address[] memory tokens, uint256[] memory, uint256)
-    {
+    {}
+
+    function getPool(bytes32 poolId) external view override returns (address, PoolSpecialization) {}
+
+    function getPoolTokens(bytes32 poolId) external view override returns (address[] memory tokens, uint256[] memory, uint256) {
         tokens = new address[](2);
         tokens[0] = tokens[0];
         tokens[1] = tokens[1];
     }
 
-    function swap(
-        SingleSwap memory singleSwap,
-        FundManagement memory funds,
-        uint256 limit,
-        uint256 deadline
-    ) external payable override returns (uint256) {}
+    function swap(SingleSwap memory singleSwap, FundManagement memory funds, uint256 limit, uint256 deadline)
+        external
+        payable
+        override
+        returns (uint256)
+    {}
 }
 
 contract MockBalancerTwapOracle is IBalancerTwapOracle {
     uint256 twapValue;
     IVault mockVault;
 
-    constructor (address[] memory tokens) {
+    constructor(address[] memory tokens) {
         mockVault = new MockVault(tokens);
     }
 
@@ -55,32 +45,29 @@ contract MockBalancerTwapOracle is IBalancerTwapOracle {
         twapValue = value;
     }
 
-    function getTimeWeightedAverage(
-        IBalancerTwapOracle.OracleAverageQuery[] memory queries
-    ) external view override returns (uint256[] memory results) {
+    function getTimeWeightedAverage(IBalancerTwapOracle.OracleAverageQuery[] memory queries)
+        external
+        view
+        override
+        returns (uint256[] memory results)
+    {
         queries;
         results = new uint256[](1);
         results[0] = twapValue;
     }
 
-    function getLargestSafeQueryWindow()
-        external
-        pure
-        override
-        returns (uint256)
-    {
+    function getLargestSafeQueryWindow() external pure override returns (uint256) {
         return 24 hours; // simulates an oracle that can look back at most 24 hours
     }
 
-    function getPastAccumulators(
-        IBalancerTwapOracle.OracleAccumulatorQuery[] memory queries
-    ) external view override returns (int256[] memory results) {
-    }
+    function getPastAccumulators(IBalancerTwapOracle.OracleAccumulatorQuery[] memory queries)
+        external
+        view
+        override
+        returns (int256[] memory results)
+    {}
 
-    function getLatest(
-        IBalancerTwapOracle.Variable variable
-    ) external view override returns (uint256) {
-    }
+    function getLatest(IBalancerTwapOracle.Variable variable) external view override returns (uint256) {}
 
     function getVault() external view override returns (IVault) {
         return mockVault;

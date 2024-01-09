@@ -66,14 +66,9 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Constructor
     /// -----------------------------------------------------------------------
 
-    constructor(
-        IUniswapV3Pool uniswapPool_,
-        address token,
-        address owner_,
-        uint32 secs_,
-        uint32 ago_,
-        uint128 minPrice_
-    ) Owned(owner_) {
+    constructor(IUniswapV3Pool uniswapPool_, address token, address owner_, uint32 secs_, uint32 ago_, uint128 minPrice_)
+        Owned(owner_)
+    {
         uniswapPool = uniswapPool_;
         isToken0 = token == uniswapPool_.token0();
         secs = secs_;
@@ -143,10 +138,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// would be (block.timestamp - secs - ago, block.timestamp - ago].
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
-    function setParams(uint32 secs_, uint32 ago_, uint128 minPrice_)
-        external
-        onlyOwner
-    {
+    function setParams(uint32 secs_, uint32 ago_, uint128 minPrice_) external onlyOwner {
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;

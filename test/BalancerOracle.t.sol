@@ -25,12 +25,12 @@ contract BalancerOracleTest is Test {
 
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
     uint32 FORK_BLOCK = 18764758;
-    
+
     address TOKEN_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address PAYMENT_ADDRESS = 0xfd0205066521550D7d7AB19DA8F72bb004b4C341;
     address POOL_ADDRESS = 0x9232a548DD9E81BaC65500b5e0d918F8Ba93675C;
 
-    uint MULTIPLIER_DENOM = 10000;
+    uint256 MULTIPLIER_DENOM = 10000;
 
     uint256 opFork;
 
@@ -42,7 +42,6 @@ contract BalancerOracleTest is Test {
     }
 
     function test_priceWithinAcceptableRange() public {
-
         BalancerOracle oracle = new BalancerOracle(
             _default.pair,
             _default.token,
@@ -52,11 +51,11 @@ contract BalancerOracleTest is Test {
             _default.minPrice
         );
 
-        uint oraclePrice = oracle.getPrice();
+        uint256 oraclePrice = oracle.getPrice();
 
         uint256 spotPrice = getSpotPrice(address(_default.pair), _default.token);
         assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too big"); // 1%
-   }
+    }
 
     function test_priceToken1() public {
         IVault vault = _default.pair.getVault();
@@ -70,7 +69,7 @@ contract BalancerOracleTest is Test {
             _default.ago,
             _default.minPrice
         );
-        
+
         BalancerOracle oracleToken1 = new BalancerOracle(
             _default.pair,
             poolTokens[1],
@@ -80,12 +79,11 @@ contract BalancerOracleTest is Test {
             _default.minPrice
         );
 
-        uint priceToken0 = oracleToken0.getPrice();
-        uint priceToken1 = oracleToken1.getPrice();
+        uint256 priceToken0 = oracleToken0.getPrice();
+        uint256 priceToken1 = oracleToken1.getPrice();
 
         assertEq(priceToken1, uint256(1e18).divWadUp(priceToken0), "incorrect price"); // 1%
     }
-
 
     function test_singleBlockManipulation() public {
         IVault vault = _default.pair.getVault();
@@ -157,7 +155,7 @@ contract BalancerOracleTest is Test {
 
         // oracle price is only updated on swaps
         assertEq(price_1, oracle.getPrice(), "price updated");
-        
+
         // perform additional, smaller swap
         address manipulator2 = makeAddr("manipulator2");
         deal(PAYMENT_ADDRESS, manipulator2, 1);
@@ -168,8 +166,10 @@ contract BalancerOracleTest is Test {
 
         // weighted average of the first recorded oracle price and the current spot price
         // weighted by the time since the last update
-        uint256 spotAverage = ((price_1 * (_default.secs - skipTime)) + (getSpotPrice(address(_default.pair), _default.token) * skipTime)) / _default.secs;
-        
+        uint256 spotAverage = (
+            (price_1 * (_default.secs - skipTime)) + (getSpotPrice(address(_default.pair), _default.token) * skipTime)
+        ) / _default.secs;
+
         assertApproxEqRel(spotAverage, oracle.getPrice(), 0.01 ether, "price variance too large");
     }
 
@@ -179,38 +179,24 @@ contract BalancerOracleTest is Test {
         (address[] memory poolTokens,,) = vault.getPoolTokens(poolId);
 
         bool isToken0 = token == poolTokens[0];
-        (,uint[] memory balances, ) = vault.getPoolTokens(poolId);
-        uint[] memory weights = IBalancer2TokensPool(pool).getNormalizedWeights();
+        (, uint256[] memory balances,) = vault.getPoolTokens(poolId);
+        uint256[] memory weights = IBalancer2TokensPool(pool).getNormalizedWeights();
 
-        price = isToken0 ? 
-            (balances[1] * weights[0]).divWadDown(balances[0] * weights[1]) :
-            (balances[0] * weights[1]).divWadDown(balances[1] * weights[0]);
+        price = isToken0
+            ? (balances[1] * weights[0]).divWadDown(balances[0] * weights[1])
+            : (balances[0] * weights[1]).divWadDown(balances[1] * weights[0]);
     }
 
-    function swap(address pool, address tokenIn, address tokenOut, uint amountIn, address sender) internal returns (uint amountOut) {
+    function swap(address pool, address tokenIn, address tokenOut, uint256 amountIn, address sender)
+        internal
+        returns (uint256 amountOut)
+    {
         bytes32 poolId = IBalancerTwapOracle(pool).getPoolId();
-        IVault.SingleSwap memory singleSwap = IVault.SingleSwap(
-            poolId,
-            IVault.SwapKind.GIVEN_IN,
-            IAsset(tokenIn),
-            IAsset(tokenOut),
-            amountIn,
-            ""
-        );
+        IVault.SingleSwap memory singleSwap =
+            IVault.SingleSwap(poolId, IVault.SwapKind.GIVEN_IN, IAsset(tokenIn), IAsset(tokenOut), amountIn, "");
 
-        IVault.FundManagement memory funds = IVault.FundManagement(
-            sender,
-            false,
-            payable(sender),
-            false
-        );
+        IVault.FundManagement memory funds = IVault.FundManagement(sender, false, payable(sender), false);
 
-        return IVault(IBalancer2TokensPool(pool).getVault()).swap(
-            singleSwap,
-            funds,
-            0,
-            type(uint256).max
-        );
+        return IVault(IBalancer2TokensPool(pool).getVault()).swap(singleSwap, funds, 0, type(uint256).max);
     }
-
 }

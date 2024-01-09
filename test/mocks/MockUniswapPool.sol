@@ -66,18 +66,11 @@ contract MockUniswapPool is IUniswapV3Pool {
 
     function feeGrowthGlobal1X128() external view override returns (uint256) {}
 
-    function protocolFees()
-        external
-        view
-        override
-        returns (uint128, uint128)
-    {}
+    function protocolFees() external view override returns (uint128, uint128) {}
 
     function liquidity() external view override returns (uint128) {}
 
-    function ticks(
-        int24 tick
-    )
+    function ticks(int24 tick)
         external
         view
         override
@@ -93,13 +86,9 @@ contract MockUniswapPool is IUniswapV3Pool {
         )
     {}
 
-    function tickBitmap(
-        int16 wordPosition
-    ) external view override returns (uint256) {}
+    function tickBitmap(int16 wordPosition) external view override returns (uint256) {}
 
-    function positions(
-        bytes32 key
-    )
+    function positions(bytes32 key)
         external
         view
         override
@@ -112,71 +101,48 @@ contract MockUniswapPool is IUniswapV3Pool {
         )
     {}
 
-    function observations(
-        uint256 index
-    )
+    function observations(uint256 index)
         external
         view
         override
-        returns (
-            uint32 blockTimestamp,
-            int56 tickCumulative,
-            uint160 secondsPerLiquidityCumulativeX128,
-            bool initialized
-        )
+        returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized)
     {}
 
     function initialize(uint160 sqrtPriceX96) external override {}
 
-    function mint(
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount,
-        bytes calldata data
-    ) external override returns (uint256 amount0, uint256 amount1) {}
+    function mint(address recipient, int24 tickLower, int24 tickUpper, uint128 amount, bytes calldata data)
+        external
+        override
+        returns (uint256 amount0, uint256 amount1)
+    {}
 
-    function collect(
-        address recipient,
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount0Requested,
-        uint128 amount1Requested
-    ) external override returns (uint128 amount0, uint128 amount1) {}
+    function collect(address recipient, int24 tickLower, int24 tickUpper, uint128 amount0Requested, uint128 amount1Requested)
+        external
+        override
+        returns (uint128 amount0, uint128 amount1)
+    {}
 
-    function burn(
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 amount
-    ) external override returns (uint256 amount0, uint256 amount1) {}
+    function burn(int24 tickLower, int24 tickUpper, uint128 amount)
+        external
+        override
+        returns (uint256 amount0, uint256 amount1)
+    {}
 
-    function swap(
-        address recipient,
-        bool zeroForOne,
-        int256 amountSpecified,
-        uint160 sqrtPriceLimitX96,
-        bytes calldata data
-    ) external override returns (int256 amount0, int256 amount1) {}
+    function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data)
+        external
+        override
+        returns (int256 amount0, int256 amount1)
+    {}
 
-    function flash(
-        address recipient,
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata data
-    ) external override {}
+    function flash(address recipient, uint256 amount0, uint256 amount1, bytes calldata data) external override {}
 
-    function increaseObservationCardinalityNext(
-        uint16 observationCardinalityNext
-    ) external override {}
+    function increaseObservationCardinalityNext(uint16 observationCardinalityNext) external override {}
 
-    function setFeeProtocol(
-        uint8 feeProtocol0,
-        uint8 feeProtocol1
-    ) external override {}
+    function setFeeProtocol(uint8 feeProtocol0, uint8 feeProtocol1) external override {}
 
-    function collectProtocol(
-        address recipient,
-        uint128 amount0Requested,
-        uint128 amount1Requested
-    ) external override returns (uint128 amount0, uint128 amount1) {}
+    function collectProtocol(address recipient, uint128 amount0Requested, uint128 amount1Requested)
+        external
+        override
+        returns (uint128 amount0, uint128 amount1)
+    {}
 }

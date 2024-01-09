@@ -92,7 +92,7 @@ contract DiscountExercise is BaseExercise {
         virtual
         override
         onlyOToken
-        returns (uint paymentAmount, address, uint256, uint256)
+        returns (uint256 paymentAmount, address, uint256, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -111,7 +111,7 @@ contract DiscountExercise is BaseExercise {
     function setMultiplier(uint256 multiplier_) external onlyOwner {
         if (
             multiplier_ > MULTIPLIER_DENOM * 2 // over 200%
-            || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
+                || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
         ) revert Exercise__MultiplierOutOfRange();
         multiplier = multiplier_;
         emit SetMultiplier(multiplier_);
@@ -122,7 +122,7 @@ contract DiscountExercise is BaseExercise {
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
         virtual
-        returns (uint256 paymentAmount, address, uint256, uint256) 
+        returns (uint256 paymentAmount, address, uint256, uint256)
     {
         // decode params
         DiscountExerciseParams memory _params = abi.decode(params, (DiscountExerciseParams));
@@ -147,9 +147,7 @@ contract DiscountExercise is BaseExercise {
 
     /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
     /// @param amount The amount of options tokens to exercise
-    function getPaymentAmount(
-        uint256 amount
-    ) external view returns (uint256 paymentAmount) {
+    function getPaymentAmount(uint256 amount) external view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice());
     }
 }

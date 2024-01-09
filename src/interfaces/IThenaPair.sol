@@ -1,14 +1,7 @@
 pragma solidity >=0.5;
 
 interface IThenaPair {
-    function getReserves()
-        external
-        view
-        returns (
-            uint112 _reserve0,
-            uint112 _reserve1,
-            uint32 _blockTimestampLast
-        );
+    function getReserves() external view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast);
 
     function reserve0CumulativeLast() external view returns (uint256);
 
@@ -17,17 +10,16 @@ interface IThenaPair {
     function currentCumulativePrices()
         external
         view
-        returns (
-            uint256 reserve0Cumulative,
-            uint256 reserve1Cumulative,
-            uint256 blockTimestamp
-        );
+        returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp);
 
     function stable() external view returns (bool);
 
     function observationLength() external view returns (uint256);
 
-    function observations(uint256) external view returns (uint256 timestamp, uint256 reserve0Cumulative, uint256 reserve1Cumulative);
+    function observations(uint256)
+        external
+        view
+        returns (uint256 timestamp, uint256 reserve0Cumulative, uint256 reserve1Cumulative);
 
     function token0() external view returns (address);
 

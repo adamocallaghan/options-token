@@ -13,7 +13,6 @@ import {TestERC20} from "./mocks/TestERC20.sol";
 import {BalancerOracle} from "../src/oracles/BalancerOracle.sol";
 import {MockBalancerTwapOracle} from "./mocks/MockBalancerTwapOracle.sol";
 
-
 contract OptionsTokenTest is Test {
     using FixedPointMathLib for uint256;
 
@@ -66,10 +65,10 @@ contract OptionsTokenTest is Test {
         tokens[1] = address(paymentToken);
 
         balancerTwapOracle = new MockBalancerTwapOracle(tokens);
-        oracle =
-            new BalancerOracle(balancerTwapOracle, underlyingToken, owner, ORACLE_SECS, ORACLE_AGO, ORACLE_MIN_PRICE);
+        oracle = new BalancerOracle(balancerTwapOracle, underlyingToken, owner, ORACLE_SECS, ORACLE_AGO, ORACLE_MIN_PRICE);
 
-        exerciser = new DiscountExercise(optionsToken, owner, IERC20(address(paymentToken)), IERC20(underlyingToken), oracle, PRICE_MULTIPLIER, feeRecipients_, feeBPS_);
+        exerciser =
+        new DiscountExercise(optionsToken, owner, IERC20(address(paymentToken)), IERC20(underlyingToken), oracle, PRICE_MULTIPLIER, feeRecipients_, feeBPS_);
 
         TestERC20(underlyingToken).mint(address(exerciser), 1e20 ether);
 
@@ -108,15 +107,12 @@ contract OptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         (uint256 paymentAmount,,,) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
 
         // verify options tokens were transferred
@@ -151,33 +147,31 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(bytes4(keccak256("BalancerOracle__BelowMinPrice()")));
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
 
-    function test_priceMultiplier(uint256 amount, uint multiplier) public {
+    function test_priceMultiplier(uint256 amount, uint256 multiplier) public {
         amount = bound(amount, 1, MAX_SUPPLY / 2);
 
         vm.prank(owner);
         exerciser.setMultiplier(10000); // full price
-        
+
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(address(this), amount * 2);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE);
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE);
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         (uint256 paidAmount,,,) = optionsToken.exercise(amount, address(this), address(exerciser), abi.encode(params));
-        
+
         // update multiplier
         multiplier = bound(multiplier, 1000, 20000);
         vm.prank(owner);
@@ -203,15 +197,12 @@ contract OptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount - 1,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount - 1, deadline: type(uint256).max});
         vm.expectRevert(DiscountExercise.Exercise__SlippageTooHigh.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
@@ -224,8 +215,7 @@ contract OptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // update oracle params
@@ -235,10 +225,8 @@ contract OptionsTokenTest is Test {
         oracle.setParams(ORACLE_SECS, ORACLE_LARGEST_SAFETY_WINDOW, ORACLE_MIN_PRICE);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(BalancerOracle.BalancerOracle__TWAPOracleNotReady.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
@@ -252,15 +240,12 @@ contract OptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: deadline
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: deadline});
         if (amount != 0) {
             vm.expectRevert(DiscountExercise.Exercise__PastDeadline.selector);
         }
@@ -274,17 +259,14 @@ contract OptionsTokenTest is Test {
         vm.prank(tokenAdmin);
         optionsToken.mint(address(this), amount);
 
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(BaseExercise.Exercise__NotOToken.selector);
-        exerciser.exercise(address(this), amount, recipient, abi.encode(params)); 
+        exerciser.exercise(address(this), amount, recipient, abi.encode(params));
     }
 
     function test_exerciseNotExerciseContract(uint256 amount, address recipient) public {
@@ -299,17 +281,13 @@ contract OptionsTokenTest is Test {
         optionsToken.setExerciseContract(address(exerciser), false);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount =
-            amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params = DiscountExerciseParams({
-            maxPaymentAmount: expectedPaymentAmount,
-            deadline: type(uint256).max
-        });
+        DiscountExerciseParams memory params =
+            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
-
 }

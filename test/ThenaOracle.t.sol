@@ -22,13 +22,13 @@ contract ThenaOracleTest is Test {
 
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
     uint32 FORK_BLOCK = 33672842;
-    
+
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF;
     address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45;
     address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955;
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109;
 
-    uint MULTIPLIER_DENOM = 10000;
+    uint256 MULTIPLIER_DENOM = 10000;
 
     uint256 bscFork;
 
@@ -40,7 +40,6 @@ contract ThenaOracleTest is Test {
     }
 
     function test_priceWithinAcceptableRange() public {
-
         ThenaOracle oracle = new ThenaOracle(
             _default.pair,
             _default.token,
@@ -49,14 +48,13 @@ contract ThenaOracleTest is Test {
             _default.minPrice
         );
 
-        uint oraclePrice = oracle.getPrice();
+        uint256 oraclePrice = oracle.getPrice();
 
         uint256 spotPrice = getSpotPrice(_default.pair, _default.token);
         assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too large"); // 1%
     }
 
     function test_priceToken1() public {
-
         ThenaOracle oracleToken0 = new ThenaOracle(
             _default.pair,
             IThenaPair(_default.pair).token0(),
@@ -64,7 +62,7 @@ contract ThenaOracleTest is Test {
             _default.secs,
             _default.minPrice
         );
-        
+
         ThenaOracle oracleToken1 = new ThenaOracle(
             _default.pair,
             IThenaPair(_default.pair).token1(),
@@ -73,8 +71,8 @@ contract ThenaOracleTest is Test {
             _default.minPrice
         );
 
-        uint priceToken0 = oracleToken0.getPrice();
-        uint priceToken1 = oracleToken1.getPrice();
+        uint256 priceToken0 = oracleToken0.getPrice();
+        uint256 priceToken1 = oracleToken1.getPrice();
 
         assertApproxEqAbs(priceToken1, uint256(1e18).divWadDown(priceToken0), 1, "incorrect price"); // 1%
     }
@@ -103,13 +101,7 @@ contract ThenaOracleTest is Test {
         deal(TOKEN_ADDRESS, address(this), amountIn);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, amountIn);
         IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
-            amountIn,
-            0,
-            TOKEN_ADDRESS,
-            PAYMENT_TOKEN_ADDRESS,
-            false,
-            address(this),
-            type(uint32).max
+            amountIn, 0, TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, address(this), type(uint32).max
         );
 
         ThenaOracle oracleMinPrice = new ThenaOracle(
@@ -183,26 +175,21 @@ contract ThenaOracleTest is Test {
 
         // perform a large swap
         address manipulator = makeAddr("manipulator");
-        deal(TOKEN_ADDRESS, manipulator, 2**128);
+        deal(TOKEN_ADDRESS, manipulator, 2 ** 128);
         vm.startPrank(manipulator);
         (uint256 reserve0, uint256 reserve1,) = _default.pair.getReserves();
         uint256 amountIn = (TOKEN_ADDRESS == _default.pair.token0() ? reserve0 : reserve1) / 4;
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, amountIn);
         IThenaRouter(THENA_ROUTER).swapExactTokensForTokensSimple(
-            amountIn,
-            0,
-            TOKEN_ADDRESS,
-            PAYMENT_TOKEN_ADDRESS,
-            false,
-            manipulator,
-            type(uint32).max
+            amountIn, 0, TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, manipulator, type(uint32).max
         );
         vm.stopPrank();
 
         // wait
         skip(skipTime);
 
-        uint256 expectedMinPrice = (price_1 * (_default.secs - skipTime) + getSpotPrice(_default.pair, _default.token) * skipTime) / _default.secs;
+        uint256 expectedMinPrice =
+            (price_1 * (_default.secs - skipTime) + getSpotPrice(_default.pair, _default.token) * skipTime) / _default.secs;
 
         assertGeDecimal(oracle.getPrice(), expectedMinPrice, 18, "price variation too large");
     }
@@ -211,14 +198,13 @@ contract ThenaOracleTest is Test {
         bool isToken0 = token == pair.token0();
         (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
         if (isToken0) {
-            price = uint256(reserve1).divWadDown(reserve0); 
+            price = uint256(reserve1).divWadDown(reserve0);
         } else {
-            price = uint256(reserve0).divWadDown(reserve1); 
+            price = uint256(reserve0).divWadDown(reserve1);
         }
     }
 
-    function max(uint x, uint y) internal pure returns (uint z) {
+    function max(uint256 x, uint256 y) internal pure returns (uint256 z) {
         z = x > y ? x : y;
     }
-
 }

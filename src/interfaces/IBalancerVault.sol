@@ -12,7 +12,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 pragma experimental ABIEncoderV2;
 
 pragma solidity >=0.7.0 <0.9.0;
@@ -25,15 +24,14 @@ pragma solidity >=0.7.0 <0.9.0;
  * This concept is unrelated to a Pool's Asset Managers.
  */
 interface IAsset {
-    // solhint-disable-previous-line no-empty-blocks
+// solhint-disable-previous-line no-empty-blocks
 }
 
 /**
  * @dev Minimal interface for interacting with Balancer's vault.
  */
 interface IVault {
-
-/**
+    /**
      * @dev Called by users to join a Pool, which transfers tokens from `sender` into the Pool's balance. This will
      * trigger custom Pool behavior, which will typically grant something in return to `recipient` - often tokenized
      * Pool shares.
@@ -65,12 +63,7 @@ interface IVault {
      *
      * Emits a `PoolBalanceChanged` event.
      */
-    function joinPool(
-        bytes32 poolId,
-        address sender,
-        address recipient,
-        JoinPoolRequest memory request
-    ) external payable;
+    function joinPool(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request) external payable;
 
     struct JoinPoolRequest {
         IAsset[] assets;
@@ -79,7 +72,11 @@ interface IVault {
         bool fromInternalBalance;
     }
 
-    enum PoolSpecialization { GENERAL, MINIMAL_SWAP_INFO, TWO_TOKEN }
+    enum PoolSpecialization {
+        GENERAL,
+        MINIMAL_SWAP_INFO,
+        TWO_TOKEN
+    }
 
     /**
      * @dev Returns a Pool's contract address and specialization setting.
@@ -100,15 +97,7 @@ interface IVault {
      * the amounts used by joins, exits and swaps. For a detailed breakdown of token balances, use `getPoolTokenInfo`
      * instead.
      */
-    function getPoolTokens(bytes32 poolId)
-        external
-        view
-        returns (
-            address[] memory tokens,
-            uint256[] memory,
-            uint256
-        );
-
+    function getPoolTokens(bytes32 poolId) external view returns (address[] memory tokens, uint256[] memory, uint256);
 
     /**
      * @dev All tokens in a swap are either sent from the `sender` account to the Vault, or from the Vault to the
@@ -134,7 +123,10 @@ interface IVault {
         bool toInternalBalance;
     }
 
-    enum SwapKind { GIVEN_IN, GIVEN_OUT }
+    enum SwapKind {
+        GIVEN_IN,
+        GIVEN_OUT
+    }
 
     /**
      * @dev Performs a swap with a single Pool.
@@ -149,12 +141,10 @@ interface IVault {
      *
      * Emits a `Swap` event.
      */
-    function swap(
-        SingleSwap memory singleSwap,
-        FundManagement memory funds,
-        uint256 limit,
-        uint256 deadline
-    ) external payable returns (uint256);
+    function swap(SingleSwap memory singleSwap, FundManagement memory funds, uint256 limit, uint256 deadline)
+        external
+        payable
+        returns (uint256);
 
     /**
      * @dev Data for a single swap executed by `swap`. `amount` is either `amountIn` or `amountOut` depending on

@@ -62,13 +62,7 @@ contract ThenaOracle is IOracle, Owned {
     /// Constructor
     /// -----------------------------------------------------------------------
 
-    constructor(
-        IThenaPair thenaPair_,
-        address token,
-        address owner_,
-        uint56 secs_,
-        uint128 minPrice_
-    ) Owned(owner_) {
+    constructor(IThenaPair thenaPair_, address token, address owner_, uint56 secs_, uint128 minPrice_) Owned(owner_) {
         if (thenaPair_.stable()) revert ThenaOracle__StablePairsUnsupported();
         thenaPair = thenaPair_;
         isToken0 = thenaPair_.token0() == token;
@@ -96,24 +90,15 @@ contract ThenaOracle is IOracle, Owned {
 
         // query Thena oracle to get TWAP value
         {
-            (
-                uint256 reserve0CumulativeCurrent,
-                uint256 reserve1CumulativeCurrent,
-                uint256 blockTimestampCurrent
-            ) = thenaPair.currentCumulativePrices();
+            (uint256 reserve0CumulativeCurrent, uint256 reserve1CumulativeCurrent, uint256 blockTimestampCurrent) =
+                thenaPair.currentCumulativePrices();
             uint256 observationLength = IThenaPair(thenaPair).observationLength();
-            (
-                uint256 blockTimestampLast,
-                uint256 reserve0CumulativeLast,
-                uint256 reserve1CumulativeLast
-            ) = thenaPair.observations(observationLength - 1);
+            (uint256 blockTimestampLast, uint256 reserve0CumulativeLast, uint256 reserve1CumulativeLast) =
+                thenaPair.observations(observationLength - 1);
             uint32 T = uint32(blockTimestampCurrent - blockTimestampLast);
             if (T < secs_) {
-                (
-                    blockTimestampLast,
-                    reserve0CumulativeLast,
-                    reserve1CumulativeLast
-                ) = thenaPair.observations(observationLength - 2);
+                (blockTimestampLast, reserve0CumulativeLast, reserve1CumulativeLast) =
+                    thenaPair.observations(observationLength - 2);
                 T = uint32(blockTimestampCurrent - blockTimestampLast);
             }
             uint112 reserve0 = safe112((reserve0CumulativeCurrent - reserve0CumulativeLast) / T);
@@ -148,8 +133,7 @@ contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     function safe112(uint256 n) internal pure returns (uint112) {
-        if (n >= 2**112) revert ThenaOracle__Overflow();
+        if (n >= 2 ** 112) revert ThenaOracle__Overflow();
         return uint112(n);
     }
-
 }

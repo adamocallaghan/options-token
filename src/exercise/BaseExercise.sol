@@ -29,7 +29,7 @@ abstract contract BaseExercise is IExercise, Owned {
     /// feeBPS[n] * fee / 10_000 in fees
     uint256[] public feeBPS;
 
-    constructor (IOptionsToken _oToken, address[] memory _feeRecipients, uint256[] memory _feeBPS) {
+    constructor(IOptionsToken _oToken, address[] memory _feeRecipients, uint256[] memory _feeBPS) {
         oToken = _oToken;
         if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();
         feeRecipients = _feeRecipients;
@@ -52,8 +52,8 @@ abstract contract BaseExercise is IExercise, Owned {
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         virtual
-        returns (uint paymentAmount, address, uint256, uint256);
-    
+        returns (uint256 paymentAmount, address, uint256, uint256);
+
     function setFees(address[] memory _feeRecipients, uint256[] memory _feeBPS) external onlyOwner {
         if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();
         feeRecipients = _feeRecipients;

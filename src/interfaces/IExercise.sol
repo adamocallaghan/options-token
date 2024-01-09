@@ -9,10 +9,7 @@ interface IExercise {
     /// @param params Additional parameters for the exercise
     /// @return paymentAmount The amount of underlying tokens to pay to the exercise contract
     /// @dev Additional returns are reserved for future use
-    function exercise(
-        address from,
-        uint256 amount,
-        address recipient,
-        bytes memory params
-    ) external returns (uint256 paymentAmount, address, uint, uint);
+    function exercise(address from, uint256 amount, address recipient, bytes memory params)
+        external
+        returns (uint256 paymentAmount, address, uint256, uint256);
 }

@@ -56,10 +56,7 @@ interface IBalancerTwapOracle {
      * @dev Returns the time average weighted price corresponding to each of `queries`. Prices are represented as 18
      * decimal fixed point values.
      */
-    function getTimeWeightedAverage(OracleAverageQuery[] memory queries)
-        external
-        view
-        returns (uint256[] memory results);
+    function getTimeWeightedAverage(OracleAverageQuery[] memory queries) external view returns (uint256[] memory results);
 
     /**
      * @dev Returns latest sample of `variable`. Prices are represented as 18 decimal fixed point values.
@@ -91,10 +88,7 @@ interface IBalancerTwapOracle {
     /**
      * @dev Returns the accumulators corresponding to each of `queries`.
      */
-    function getPastAccumulators(OracleAccumulatorQuery[] memory queries)
-        external
-        view
-        returns (int256[] memory results);
+    function getPastAccumulators(OracleAccumulatorQuery[] memory queries) external view returns (int256[] memory results);
 
     /**
      * @dev Information for an Accumulator query.

@@ -1,11 +1,11 @@
 interface IThenaRouter {
     function swapExactTokensForTokensSimple(
-        uint amountIn,
-        uint amountOutMin,
+        uint256 amountIn,
+        uint256 amountOutMin,
         address tokenFrom,
         address tokenTo,
         bool stable,
         address to,
-        uint deadline
-    ) external returns (uint[] memory amounts);
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
 }

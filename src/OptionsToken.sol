@@ -27,12 +27,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// -----------------------------------------------------------------------
 
     event Exercise(
-        address indexed sender,
-        address indexed recipient,
-        uint256 amount,
-        address data0,
-        uint256 data1,
-        uint256 data2
+        address indexed sender, address indexed recipient, uint256 amount, address data0, uint256 data1, uint256 data2
     );
     event SetOracle(IOracle indexed newOracle);
     event SetExerciseContract(address indexed _address, bool _isExercise);
@@ -51,7 +46,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// @notice The contract that has the right to mint options tokens
     address public tokenAdmin;
 
-    mapping (address => bool) public isExerciseContract;
+    mapping(address => bool) public isExerciseContract;
     uint256 public upgradeProposalTime;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -63,11 +58,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// Initializer
     /// -----------------------------------------------------------------------
 
-    function initialize(
-        string memory name_,
-        string memory symbol_,
-        address tokenAdmin_
-    ) external initializer {
+    function initialize(string memory name_, string memory symbol_, address tokenAdmin_) external initializer {
         __UUPSUpgradeable_init();
         __ERC20_init(name_, symbol_);
         __Ownable_init();
@@ -109,7 +100,12 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
         virtual
-        returns (uint256 paymentAmount, address, uint256, uint256) // misc data
+        returns (
+            uint256 paymentAmount,
+            address,
+            uint256,
+            uint256 // misc data
+        )
     {
         return _exercise(amount, recipient, option, params);
     }
@@ -133,7 +129,12 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     function _exercise(uint256 amount, address recipient, address option, bytes calldata params)
         internal
         virtual
-        returns (uint256 paymentAmount, address data0, uint256 data1, uint256 data2) // misc data
+        returns (
+            uint256 paymentAmount,
+            address data0,
+            uint256 data1,
+            uint256 data2 // misc data
+        )
     {
         // skip if amount is zero
         if (amount == 0) return (0, address(0), 0, 0);
@@ -145,22 +146,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         _burn(msg.sender, amount);
 
         // give rewards to recipient
-        (
-            paymentAmount,
-            data0,
-            data1,
-            data2
-        ) = IExercise(option).exercise(msg.sender, amount, recipient, params);
+        (paymentAmount, data0, data1, data2) = IExercise(option).exercise(msg.sender, amount, recipient, params);
 
         // emit event
-        emit Exercise(
-            msg.sender,
-            recipient,
-            amount,
-            data0,
-            data1,
-            data2
-        );
+        emit Exercise(msg.sender, recipient, amount, data0, data1, data2);
     }
 
     /// -----------------------------------------------------------------------
@@ -171,7 +160,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      * @dev This function must be called prior to upgrading the implementation.
      *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
      */
-    function initiateUpgradeCooldown() onlyOwner external {
+    function initiateUpgradeCooldown() external onlyOwner {
         upgradeProposalTime = block.timestamp;
     }
 
@@ -185,7 +174,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         upgradeProposalTime = block.timestamp + FUTURE_NEXT_PROPOSAL_TIME;
     }
 
-    function clearUpgradeCooldown() onlyOwner external {
+    function clearUpgradeCooldown() external onlyOwner {
         _clearUpgradeCooldown();
     }
 
@@ -194,10 +183,8 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      *      Only the owner can upgrade the implementation once the timelock
      *      has passed.
      */
-    function _authorizeUpgrade(address) onlyOwner internal override {
-        require(
-            upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp, "Upgrade cooldown not initiated or still ongoing"
-        );
+    function _authorizeUpgrade(address) internal override onlyOwner {
+        require(upgradeProposalTime + UPGRADE_TIMELOCK < block.timestamp, "Upgrade cooldown not initiated or still ongoing");
         _clearUpgradeCooldown();
     }
 }
