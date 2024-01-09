@@ -56,7 +56,7 @@ contract OptionsTokenTest is Test {
         underlyingToken = address(new TestERC20());
 
         address implementation = address(new OptionsToken());
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), "");
+        ERC1967Proxy proxy = new ERC1967Proxy(implementation, "");
         optionsToken = OptionsToken(address(proxy));
         optionsToken.initialize("TIT Call Option Token", "oTIT", tokenAdmin);
         optionsToken.transferOwnership(owner);
