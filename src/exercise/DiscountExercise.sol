@@ -16,7 +16,7 @@ struct DiscountExerciseParams {
 }
 
 /// @title Options Token Exercise Contract
-/// @author @bigbadbeard, @lookee, @eidolon
+/// @author @lookee, @eidolon
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market price.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
@@ -59,9 +59,6 @@ contract DiscountExercise is BaseExercise {
     /// @notice The multiplier applied to the TWAP value. Encodes the discount of
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
-
-    /// @notice The treasury address which receives tokens paid during redemption
-    address public treasury;
 
     constructor(
         OptionsToken oToken_,
@@ -134,11 +131,11 @@ contract DiscountExercise is BaseExercise {
 
         // apply multiplier to price
         uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
-        // transfer payment tokens from user to the treasury
-        // this price includes the discount
+
         paymentAmount = amount.mulWadUp(price);
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
 
+        // transfer payment tokens from user to the set receivers
         distributeFeesFrom(paymentAmount, paymentToken, from);
         // transfer underlying tokens to recipient
         underlyingToken.safeTransfer(recipient, amount);

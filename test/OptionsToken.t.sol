@@ -30,7 +30,6 @@ contract OptionsTokenTest is Test {
     address tokenAdmin;
     address[] feeRecipients_;
     uint256[] feeBPS_;
-    address upgradeAdmin;
 
     OptionsToken optionsToken;
     DiscountExercise exerciser;
@@ -43,7 +42,6 @@ contract OptionsTokenTest is Test {
         // set up accounts
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin");
-        upgradeAdmin = makeAddr("upgradeAdmin");
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -146,7 +144,7 @@ contract OptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // set TWAP value such that the strike price is below the oracle's minPrice value
-        balancerTwapOracle.setTwapValue(0);
+        balancerTwapOracle.setTwapValue(ORACLE_MIN_PRICE - 1);
 
         // mint payment tokens
         uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_MIN_PRICE);
@@ -159,10 +157,10 @@ contract OptionsTokenTest is Test {
     }
 
     function test_priceMultiplier(uint256 amount, uint multiplier) public {
-        amount = bound(amount, 3000, (1e20) / 2);
+        amount = bound(amount, 1, MAX_SUPPLY / 2);
 
         vm.prank(owner);
-        exerciser.setMultiplier(10000); // 100% of price
+        exerciser.setMultiplier(10000); // full price
         
         // mint options tokens
         vm.prank(tokenAdmin);
@@ -181,7 +179,7 @@ contract OptionsTokenTest is Test {
         (uint256 paidAmount,,,) = optionsToken.exercise(amount, address(this), address(exerciser), abi.encode(params));
         
         // update multiplier
-        multiplier = bound(multiplier, 5000, 10000);
+        multiplier = bound(multiplier, 1000, 20000);
         vm.prank(owner);
         exerciser.setMultiplier(multiplier);
 
@@ -313,7 +311,5 @@ contract OptionsTokenTest is Test {
         vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
-
-
 
 }

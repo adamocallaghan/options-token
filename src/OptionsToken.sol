@@ -35,7 +35,6 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         uint256 data2
     );
     event SetOracle(IOracle indexed newOracle);
-    event SetTreasury(address indexed newTreasury);
     event SetExerciseContract(address indexed _address, bool _isExercise);
 
     /// -----------------------------------------------------------------------
@@ -102,12 +101,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         _mint(to, amount);
     }
 
-    /// @notice Exercises options tokens, giving the reward to the recipient.
-    /// @dev WARNING: If `amount` is zero, the bytes returned will be empty and therefore, not decodable.
-    /// @dev The options tokens are not burnt but sent to address(0) to avoid messing up the
-    /// inflation schedule.
+    /// @notice Exercises options tokens, burning them and giving the reward to the recipient.
     /// @param amount The amount of options tokens to exercise
     /// @param recipient The recipient of the reward
+    /// @param option The address of the Exercise contract with the redemption logic
     /// @param params Extra parameters to be used by the exercise function
     function exercise(uint256 amount, address recipient, address option, bytes calldata params)
         external
@@ -141,7 +138,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         // skip if amount is zero
         if (amount == 0) return (0, address(0), 0, 0);
 
-        // skip if option is not active
+        // revert if the exercise contract is not whitelisted
         if (!isExerciseContract[option]) revert OptionsToken__NotExerciseContract();
 
         // burn options tokens
@@ -173,7 +170,6 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /**
      * @dev This function must be called prior to upgrading the implementation.
      *      It's required to wait UPGRADE_TIMELOCK seconds before executing the upgrade.
-     *      Strategists and roles with higher privilege can initiate this cooldown.
      */
     function initiateUpgradeCooldown() onlyOwner external {
         upgradeProposalTime = block.timestamp;
@@ -184,7 +180,6 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
      *      - in initialize()
      *      - as part of a successful upgrade
      *      - manually to clear the upgrade cooldown.
-     * Guardian and roles with higher privilege can clear this cooldown.
      */
     function _clearUpgradeCooldown() internal {
         upgradeProposalTime = block.timestamp + FUTURE_NEXT_PROPOSAL_TIME;
@@ -196,7 +191,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
 
     /**
      * @dev This function must be overriden simply for access control purposes.
-     *      Only DEFAULT_ADMIN_ROLE can upgrade the implementation once the timelock
+     *      Only the owner can upgrade the implementation once the timelock
      *      has passed.
      */
     function _authorizeUpgrade(address) onlyOwner internal override {

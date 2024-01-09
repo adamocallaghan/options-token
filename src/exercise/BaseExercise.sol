@@ -62,6 +62,7 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from a token holder who has approved
+    /// @dev Sends the residual amount to the last fee recipient to avoid rounding errors
     function distributeFeesFrom(uint256 totalAmount, IERC20 token, address from) internal virtual {
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
@@ -73,11 +74,14 @@ abstract contract BaseExercise is IExercise, Owned {
     }
 
     /// @notice Distributes fees to the fee recipients from token balance of exercise contract
+    /// @dev Sends the residual amount to the last fee recipient to avoid rounding errors
     function distributeFees(uint256 totalAmount, IERC20 token) internal virtual {
-        for (uint256 i = 0; i < feeRecipients.length; i++) {
+        for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransfer(feeRecipients[i], feeAmount);
+            totalAmount -= feeAmount;
         }
+        token.safeTransfer(feeRecipients[feeRecipients.length - 1], totalAmount);
         emit DistributeFees(feeRecipients, feeBPS, totalAmount);
     }
 }
