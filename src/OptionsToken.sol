@@ -55,7 +55,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     mapping (address => bool) public isExerciseContract;
     uint256 public upgradeProposalTime;
 
-    constructor () initializer {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     /// -----------------------------------------------------------------------
     /// Initializer
