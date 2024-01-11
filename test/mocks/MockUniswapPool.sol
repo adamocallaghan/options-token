@@ -92,13 +92,7 @@ contract MockUniswapPool is IUniswapV3Pool {
         external
         view
         override
-        returns (
-            uint128 _liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        )
+        returns (uint128 _liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)
     {}
 
     function observations(uint256 index)
@@ -122,11 +116,7 @@ contract MockUniswapPool is IUniswapV3Pool {
         returns (uint128 amount0, uint128 amount1)
     {}
 
-    function burn(int24 tickLower, int24 tickUpper, uint128 amount)
-        external
-        override
-        returns (uint256 amount0, uint256 amount1)
-    {}
+    function burn(int24 tickLower, int24 tickUpper, uint128 amount) external override returns (uint256 amount0, uint256 amount1) {}
 
     function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data)
         external

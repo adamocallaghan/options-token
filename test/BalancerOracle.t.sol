@@ -166,9 +166,8 @@ contract BalancerOracleTest is Test {
 
         // weighted average of the first recorded oracle price and the current spot price
         // weighted by the time since the last update
-        uint256 spotAverage = (
-            (price_1 * (_default.secs - skipTime)) + (getSpotPrice(address(_default.pair), _default.token) * skipTime)
-        ) / _default.secs;
+        uint256 spotAverage =
+            ((price_1 * (_default.secs - skipTime)) + (getSpotPrice(address(_default.pair), _default.token) * skipTime)) / _default.secs;
 
         assertApproxEqRel(spotAverage, oracle.getPrice(), 0.01 ether, "price variance too large");
     }
@@ -187,13 +186,9 @@ contract BalancerOracleTest is Test {
             : (balances[0] * weights[1]).divWadDown(balances[1] * weights[0]);
     }
 
-    function swap(address pool, address tokenIn, address tokenOut, uint256 amountIn, address sender)
-        internal
-        returns (uint256 amountOut)
-    {
+    function swap(address pool, address tokenIn, address tokenOut, uint256 amountIn, address sender) internal returns (uint256 amountOut) {
         bytes32 poolId = IBalancerTwapOracle(pool).getPoolId();
-        IVault.SingleSwap memory singleSwap =
-            IVault.SingleSwap(poolId, IVault.SwapKind.GIVEN_IN, IAsset(tokenIn), IAsset(tokenOut), amountIn, "");
+        IVault.SingleSwap memory singleSwap = IVault.SingleSwap(poolId, IVault.SwapKind.GIVEN_IN, IAsset(tokenIn), IAsset(tokenOut), amountIn, "");
 
         IVault.FundManagement memory funds = IVault.FundManagement(sender, false, payable(sender), false);
 

@@ -66,14 +66,7 @@ contract BalancerOracle is IOracle, Owned {
     /// Constructor
     /// -----------------------------------------------------------------------
 
-    constructor(
-        IBalancerTwapOracle balancerTwapOracle_,
-        address token,
-        address owner_,
-        uint56 secs_,
-        uint56 ago_,
-        uint128 minPrice_
-    ) Owned(owner_) {
+    constructor(IBalancerTwapOracle balancerTwapOracle_, address token, address owner_, uint56 secs_, uint56 ago_, uint128 minPrice_) Owned(owner_) {
         balancerTwapOracle = balancerTwapOracle_;
 
         IVault vault = balancerTwapOracle.getVault();
@@ -118,11 +111,7 @@ contract BalancerOracle is IOracle, Owned {
         // query Balancer oracle to get TWAP value
         {
             IBalancerTwapOracle.OracleAverageQuery[] memory queries = new IBalancerTwapOracle.OracleAverageQuery[](1);
-            queries[0] = IBalancerTwapOracle.OracleAverageQuery({
-                variable: IBalancerTwapOracle.Variable.PAIR_PRICE,
-                secs: secs_,
-                ago: ago_
-            });
+            queries[0] = IBalancerTwapOracle.OracleAverageQuery({variable: IBalancerTwapOracle.Variable.PAIR_PRICE, secs: secs_, ago: ago_});
             price = balancerTwapOracle.getTimeWeightedAverage(queries)[0];
         }
 

@@ -97,8 +97,7 @@ contract ThenaOracle is IOracle, Owned {
                 thenaPair.observations(observationLength - 1);
             uint32 T = uint32(blockTimestampCurrent - blockTimestampLast);
             if (T < secs_) {
-                (blockTimestampLast, reserve0CumulativeLast, reserve1CumulativeLast) =
-                    thenaPair.observations(observationLength - 2);
+                (blockTimestampLast, reserve0CumulativeLast, reserve1CumulativeLast) = thenaPair.observations(observationLength - 2);
                 T = uint32(blockTimestampCurrent - blockTimestampLast);
             }
             uint112 reserve0 = safe112((reserve0CumulativeCurrent - reserve0CumulativeLast) / T);

@@ -4,7 +4,7 @@ verbosity = 1
 via_ir = true
 
 [fmt]
-line_length = 130
+line_length = 150
 
 # Extreme Fuzzing CI Profile :P
 [profile.ci]

@@ -11,11 +11,7 @@ contract MockVault is IVault {
         tokens = _tokens;
     }
 
-    function joinPool(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request)
-        external
-        payable
-        override
-    {}
+    function joinPool(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request) external payable override {}
 
     function getPool(bytes32 poolId) external view override returns (address, PoolSpecialization) {}
 
