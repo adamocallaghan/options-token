@@ -26,9 +26,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// Events
     /// -----------------------------------------------------------------------
 
-    event Exercise(
-        address indexed sender, address indexed recipient, uint256 amount, address data0, uint256 data1, uint256 data2
-    );
+    event Exercise(address indexed sender, address indexed recipient, uint256 amount, address data0, uint256 data1, uint256 data2);
     event SetOracle(IOracle indexed newOracle);
     event SetExerciseContract(address indexed _address, bool _isExercise);
 

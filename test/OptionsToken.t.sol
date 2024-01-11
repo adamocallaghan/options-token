@@ -111,8 +111,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         (uint256 paymentAmount,,,) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
 
         // verify options tokens were transferred
@@ -123,12 +122,8 @@ contract OptionsTokenTest is Test {
         assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
         uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
         uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
-        assertEqDecimal(
-            paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens"
-        );
-        assertEqDecimal(
-            paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens"
-        );
+        assertEqDecimal(paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
+        assertEqDecimal(paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
     }
 
@@ -147,8 +142,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(bytes4(keccak256("BalancerOracle__BelowMinPrice()")));
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
@@ -168,8 +162,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         (uint256 paidAmount,,,) = optionsToken.exercise(amount, address(this), address(exerciser), abi.encode(params));
 
         // update multiplier
@@ -201,8 +194,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount - 1, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount - 1, deadline: type(uint256).max});
         vm.expectRevert(DiscountExercise.Exercise__SlippageTooHigh.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
@@ -225,8 +217,7 @@ contract OptionsTokenTest is Test {
         oracle.setParams(ORACLE_SECS, ORACLE_LARGEST_SAFETY_WINDOW, ORACLE_MIN_PRICE);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(BalancerOracle.BalancerOracle__TWAPOracleNotReady.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
@@ -244,8 +235,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: deadline});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: deadline});
         if (amount != 0) {
             vm.expectRevert(DiscountExercise.Exercise__PastDeadline.selector);
         }
@@ -263,8 +253,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(BaseExercise.Exercise__NotOToken.selector);
         exerciser.exercise(address(this), amount, recipient, abi.encode(params));
     }
@@ -285,8 +274,7 @@ contract OptionsTokenTest is Test {
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens which should fail
-        DiscountExerciseParams memory params =
-            DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }

@@ -188,8 +188,7 @@ contract ThenaOracleTest is Test {
         // wait
         skip(skipTime);
 
-        uint256 expectedMinPrice =
-            (price_1 * (_default.secs - skipTime) + getSpotPrice(_default.pair, _default.token) * skipTime) / _default.secs;
+        uint256 expectedMinPrice = (price_1 * (_default.secs - skipTime) + getSpotPrice(_default.pair, _default.token) * skipTime) / _default.secs;
 
         assertGeDecimal(oracle.getPrice(), expectedMinPrice, 18, "price variation too large");
     }

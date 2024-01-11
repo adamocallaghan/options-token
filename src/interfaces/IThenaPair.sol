@@ -7,19 +7,13 @@ interface IThenaPair {
 
     function reserve1CumulativeLast() external view returns (uint256);
 
-    function currentCumulativePrices()
-        external
-        view
-        returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp);
+    function currentCumulativePrices() external view returns (uint256 reserve0Cumulative, uint256 reserve1Cumulative, uint256 blockTimestamp);
 
     function stable() external view returns (bool);
 
     function observationLength() external view returns (uint256);
 
-    function observations(uint256)
-        external
-        view
-        returns (uint256 timestamp, uint256 reserve0Cumulative, uint256 reserve1Cumulative);
+    function observations(uint256) external view returns (uint256 timestamp, uint256 reserve0Cumulative, uint256 reserve1Cumulative);
 
     function token0() external view returns (address);
 

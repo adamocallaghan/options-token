@@ -66,9 +66,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Constructor
     /// -----------------------------------------------------------------------
 
-    constructor(IUniswapV3Pool uniswapPool_, address token, address owner_, uint32 secs_, uint32 ago_, uint128 minPrice_)
-        Owned(owner_)
-    {
+    constructor(IUniswapV3Pool uniswapPool_, address token, address owner_, uint32 secs_, uint32 ago_, uint128 minPrice_) Owned(owner_) {
         uniswapPool = uniswapPool_;
         isToken0 = token == uniswapPool_.token0();
         secs = secs_;
@@ -113,14 +111,10 @@ contract UniswapV3Oracle is IOracle, Owned {
             // Calculate quoteAmount with better precision if it doesn't overflow when multiplied by itself
             if (sqrtRatioX96 <= type(uint128).max) {
                 uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
-                price = isToken0
-                    ? FullMath.mulDiv(ratioX192, decimalPrecision, 1 << 192)
-                    : FullMath.mulDiv(1 << 192, decimalPrecision, ratioX192);
+                price = isToken0 ? FullMath.mulDiv(ratioX192, decimalPrecision, 1 << 192) : FullMath.mulDiv(1 << 192, decimalPrecision, ratioX192);
             } else {
                 uint256 ratioX128 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, 1 << 64);
-                price = isToken0
-                    ? FullMath.mulDiv(ratioX128, decimalPrecision, 1 << 128)
-                    : FullMath.mulDiv(1 << 128, decimalPrecision, ratioX128);
+                price = isToken0 ? FullMath.mulDiv(ratioX128, decimalPrecision, 1 << 128) : FullMath.mulDiv(1 << 128, decimalPrecision, ratioX128);
             }
         }
 
