@@ -29,6 +29,7 @@ contract DiscountExercise is BaseExercise {
     error Exercise__SlippageTooHigh();
     error Exercise__PastDeadline();
     error Exercise__MultiplierOutOfRange();
+    error Exercise__InvalidOracle();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -60,6 +61,10 @@ contract DiscountExercise is BaseExercise {
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
 
+    /// @notice The amount of payment tokens the user can claim
+    /// Used when the contract does not have enough tokens to pay the user
+    mapping (address => uint256) public credit;
+
     constructor(
         OptionsToken oToken_,
         address owner_,
@@ -72,11 +77,11 @@ contract DiscountExercise is BaseExercise {
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
-        oracle = oracle_;
-        multiplier = multiplier_;
+
+        _setOracle(oracle_);
+        _setMultiplier(multiplier_);
 
         emit SetOracle(oracle_);
-        emit SetMultiplier(multiplier_);
     }
 
     /// External functions
@@ -97,11 +102,25 @@ contract DiscountExercise is BaseExercise {
         return _exercise(from, amount, recipient, params);
     }
 
+    function claim(address to) external {
+        uint256 amount = credit[msg.sender];
+        if (amount == 0) return;
+        credit[msg.sender] = 0;
+        underlyingToken.safeTransfer(to, amount);
+    }
+
     /// Owner functions
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
     function setOracle(IOracle oracle_) external onlyOwner {
+        _setOracle(oracle_);
+    }
+
+    function _setOracle(IOracle oracle_) internal {
+        (address paymentToken_, address underlyingToken_) = oracle_.getTokens();
+        if (paymentToken_ != address(paymentToken) || underlyingToken_ != address(underlyingToken))
+            revert Exercise__InvalidOracle();
         oracle = oracle_;
         emit SetOracle(oracle_);
     }
@@ -109,6 +128,10 @@ contract DiscountExercise is BaseExercise {
     /// @notice Sets the discount multiplier.
     /// @param multiplier_ The new multiplier
     function setMultiplier(uint256 multiplier_) external onlyOwner {
+        _setMultiplier(multiplier_);
+    }
+
+    function _setMultiplier(uint256 multiplier_) internal {
         if (
             multiplier_ > MULTIPLIER_DENOM * 2 // over 200%
                 || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
@@ -138,9 +161,20 @@ contract DiscountExercise is BaseExercise {
         // transfer payment tokens from user to the set receivers
         distributeFeesFrom(paymentAmount, paymentToken, from);
         // transfer underlying tokens to recipient
-        underlyingToken.safeTransfer(recipient, amount);
+        _pay(recipient, amount);
 
         emit Exercised(from, recipient, amount, paymentAmount);
+    }
+
+    function _pay(address to, uint256 amount) internal returns (uint256 remainingAmount) {
+        uint256 balance = underlyingToken.balanceOf(address(this));
+        if (amount > balance) {
+            underlyingToken.safeTransfer(to, balance);
+            remainingAmount = amount - balance;
+        } else {
+            underlyingToken.safeTransfer(to, amount);
+        }
+        credit[to] += remainingAmount;
     }
 
     /// View functions
@@ -148,6 +182,6 @@ contract DiscountExercise is BaseExercise {
     /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
     /// @param amount The amount of options tokens to exercise
     function getPaymentAmount(uint256 amount) external view returns (uint256 paymentAmount) {
-        paymentAmount = amount.mulWadUp(oracle.getPrice());
+        paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 }

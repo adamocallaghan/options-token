@@ -20,5 +20,8 @@
     "dotenv": "^16.3.1",
     "ethers": "^6.9.2",
     "hardhat": "^2.19.4"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10"
   }
 }

@@ -15,8 +15,6 @@ import {FullMath} from "v3-core/libraries/FullMath.sol";
 /// @notice The oracle contract that provides the current price to purchase
 /// the underlying token while exercising options. Uses UniswapV3 TWAP oracle
 /// as data source, and then applies a multiplier & lower bound.
-/// @dev IMPORTANT: This oracle assumes both tokens have 18 decimals, and
-/// returns the price with 18 decimals.
 contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Library usage
@@ -28,6 +26,8 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// Errors
     /// -----------------------------------------------------------------------
 
+    error UniswapOracle__InvalidParams();
+    error UniswapOracle__InvalidWindow();
     error UniswapOracle__BelowMinPrice();
 
     /// -----------------------------------------------------------------------
@@ -39,6 +39,8 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Immutable parameters
     /// -----------------------------------------------------------------------
+
+    uint256 internal constant MIN_SECS = 20 minutes;
 
     /// @notice The UniswapV3 Pool contract (provides the oracle)
     IUniswapV3Pool public immutable uniswapPool;
@@ -67,6 +69,8 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
 
     constructor(IUniswapV3Pool uniswapPool_, address token, address owner_, uint32 secs_, uint32 ago_, uint128 minPrice_) Owned(owner_) {
+        if (uniswapPool_.token0() != token && uniswapPool_.token1() != token) revert UniswapOracle__InvalidParams();
+        if (secs_ < MIN_SECS) revert UniswapOracle__InvalidWindow();
         uniswapPool = uniswapPool_;
         isToken0 = token == uniswapPool_.token0();
         secs = secs_;
@@ -122,6 +126,15 @@ contract UniswapV3Oracle is IOracle, Owned {
         if (price < minPrice) revert UniswapOracle__BelowMinPrice();
     }
 
+    /// @inheritdoc IOracle
+    function getTokens() external view override returns (address paymentToken, address underlyingToken) {
+        if (isToken0) {
+            return (uniswapPool.token1(), uniswapPool.token0());
+        } else {
+            return (uniswapPool.token0(), uniswapPool.token1());
+        }
+    }
+
     /// -----------------------------------------------------------------------
     /// Owner functions
     /// -----------------------------------------------------------------------
@@ -133,6 +146,7 @@ contract UniswapV3Oracle is IOracle, Owned {
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
     function setParams(uint32 secs_, uint32 ago_, uint128 minPrice_) external onlyOwner {
+        if (secs_ < MIN_SECS) revert UniswapOracle__InvalidWindow();
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;

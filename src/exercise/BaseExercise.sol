@@ -14,6 +14,7 @@ abstract contract BaseExercise is IExercise, Owned {
 
     error Exercise__NotOToken();
     error Exercise__feeArrayLengthMismatch();
+    error Exercise__InvalidFeeAmounts();
 
     event SetFees(address[] feeRecipients, uint256[] feeBPS);
     event DistributeFees(address[] feeRecipients, uint256[] feeBPS, uint256 totalAmount);
@@ -31,10 +32,7 @@ abstract contract BaseExercise is IExercise, Owned {
 
     constructor(IOptionsToken _oToken, address[] memory _feeRecipients, uint256[] memory _feeBPS) {
         oToken = _oToken;
-        if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();
-        feeRecipients = _feeRecipients;
-        feeBPS = _feeBPS;
-        emit SetFees(_feeRecipients, _feeBPS);
+        _setFees(_feeRecipients, _feeBPS);
     }
 
     modifier onlyOToken() {
@@ -55,7 +53,16 @@ abstract contract BaseExercise is IExercise, Owned {
         returns (uint256 paymentAmount, address, uint256, uint256);
 
     function setFees(address[] memory _feeRecipients, uint256[] memory _feeBPS) external onlyOwner {
+        _setFees(_feeRecipients, _feeBPS);
+    }
+
+    function _setFees(address[] memory _feeRecipients, uint256[] memory _feeBPS) internal {
         if (_feeRecipients.length != _feeBPS.length) revert Exercise__feeArrayLengthMismatch();
+        uint256 totalBPS = 0;
+        for (uint256 i = 0; i < _feeBPS.length; i++) {
+            totalBPS += _feeBPS[i];
+        }
+        if (totalBPS != FEE_DENOMINATOR) revert Exercise__InvalidFeeAmounts();
         feeRecipients = _feeRecipients;
         feeBPS = _feeBPS;
         emit SetFees(_feeRecipients, _feeBPS);
@@ -64,24 +71,26 @@ abstract contract BaseExercise is IExercise, Owned {
     /// @notice Distributes fees to the fee recipients from a token holder who has approved
     /// @dev Sends the residual amount to the last fee recipient to avoid rounding errors
     function distributeFeesFrom(uint256 totalAmount, IERC20 token, address from) internal virtual {
+        uint256 remaining = totalAmount;
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransferFrom(from, feeRecipients[i], feeAmount);
-            totalAmount -= feeAmount;
+            remaining -= feeAmount;
         }
-        token.safeTransferFrom(from, feeRecipients[feeRecipients.length - 1], totalAmount);
+        token.safeTransferFrom(from, feeRecipients[feeRecipients.length - 1], remaining);
         emit DistributeFees(feeRecipients, feeBPS, totalAmount);
     }
 
     /// @notice Distributes fees to the fee recipients from token balance of exercise contract
     /// @dev Sends the residual amount to the last fee recipient to avoid rounding errors
     function distributeFees(uint256 totalAmount, IERC20 token) internal virtual {
+        uint256 remaining = totalAmount;
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
             uint256 feeAmount = totalAmount * feeBPS[i] / FEE_DENOMINATOR;
             token.safeTransfer(feeRecipients[i], feeAmount);
-            totalAmount -= feeAmount;
+            remaining -= feeAmount;
         }
-        token.safeTransfer(feeRecipients[feeRecipients.length - 1], totalAmount);
+        token.safeTransfer(feeRecipients[feeRecipients.length - 1], remaining);
         emit DistributeFees(feeRecipients, feeBPS, totalAmount);
     }
 }

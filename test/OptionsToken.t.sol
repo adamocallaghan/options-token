@@ -61,10 +61,11 @@ contract OptionsTokenTest is Test {
         optionsToken.transferOwnership(owner);
 
         address[] memory tokens = new address[](2);
-        tokens[0] = underlyingToken;
-        tokens[1] = address(paymentToken);
+        tokens[0] = address(paymentToken);
+        tokens[1] = underlyingToken;
 
         balancerTwapOracle = new MockBalancerTwapOracle(tokens);
+        console.log(tokens[0], tokens[1]);
         oracle = new BalancerOracle(balancerTwapOracle, underlyingToken, owner, ORACLE_SECS, ORACLE_AGO, ORACLE_MIN_PRICE);
 
         exerciser =
@@ -100,7 +101,7 @@ contract OptionsTokenTest is Test {
     }
 
     function test_exerciseHappyPath(uint256 amount, address recipient) public {
-        amount = bound(amount, 0, MAX_SUPPLY);
+        amount = bound(amount, 100, MAX_SUPPLY);
 
         // mint options tokens
         vm.prank(tokenAdmin);

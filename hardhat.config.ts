@@ -2,6 +2,11 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import '@openzeppelin/hardhat-upgrades';
 import "@nomicfoundation/hardhat-foundry";
+import glob from "glob";
+import {TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS} from "hardhat/builtin-tasks/task-names";
+import path from "path";
+import { subtask } from "hardhat/config";
+
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig();
@@ -16,7 +21,8 @@ const config: HardhatUserConfig = {
     }
   },
   paths: {
-    sources: "./src"
+    sources: "./src",
+    tests: "./test_hardhat",
   },
   networks: {
     op: {
@@ -36,5 +42,14 @@ const config: HardhatUserConfig = {
     }
   },
 };
+
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(async (_, hre, runSuper) => {
+  const paths = await runSuper();
+
+  const otherDirectoryGlob = path.join(hre.config.paths.root, "test", "**", "*.sol");
+  const otherPaths = glob.sync(otherDirectoryGlob);
+
+  return [...paths, ...otherPaths];
+});
 
 export default config;

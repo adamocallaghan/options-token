@@ -12,9 +12,6 @@ import {IThenaPair} from "../interfaces/IThenaPair.sol";
 /// @notice The oracle contract that provides the current price to purchase
 /// the underlying token while exercising options. Uses Thena TWAP oracle
 /// as data source, and then applies a lower bound.
-/// Furthermore, the payment token and the underlying token must use 18 decimals.
-/// This is because the Thena oracle returns the TWAP value in 18 decimals
-/// and the OptionsToken contract also expects 18 decimals.
 contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Library usage
@@ -26,6 +23,8 @@ contract ThenaOracle is IOracle, Owned {
     /// Errors
     /// -----------------------------------------------------------------------
 
+    error ThenaOracle__InvalidParams();
+    error ThenaOracle__InvalidWindow();
     error ThenaOracle__StablePairsUnsupported();
     error ThenaOracle__Overflow();
     error ThenaOracle__BelowMinPrice();
@@ -39,6 +38,8 @@ contract ThenaOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Immutable parameters
     /// -----------------------------------------------------------------------
+
+    uint256 internal constant MIN_SECS = 20 minutes;
 
     /// @notice The Thena TWAP oracle contract (usually a pool with oracle support)
     IThenaPair public immutable thenaPair;
@@ -64,6 +65,9 @@ contract ThenaOracle is IOracle, Owned {
 
     constructor(IThenaPair thenaPair_, address token, address owner_, uint56 secs_, uint128 minPrice_) Owned(owner_) {
         if (thenaPair_.stable()) revert ThenaOracle__StablePairsUnsupported();
+        if (thenaPair_.token0() != token && thenaPair_.token1() != token) revert ThenaOracle__InvalidParams();
+        if (secs_ < MIN_SECS) revert ThenaOracle__InvalidWindow();
+
         thenaPair = thenaPair_;
         isToken0 = thenaPair_.token0() == token;
         secs = secs_;
@@ -113,6 +117,15 @@ contract ThenaOracle is IOracle, Owned {
         if (price < minPrice) revert ThenaOracle__BelowMinPrice();
     }
 
+    /// @inheritdoc IOracle
+    function getTokens() external view override returns (address paymentToken, address underlyingToken) {
+        if (isToken0) {
+            return (thenaPair.token1(), thenaPair.token0());
+        } else {
+            return (thenaPair.token0(), thenaPair.token1());
+        }
+    }
+
     /// -----------------------------------------------------------------------
     /// Owner functions
     /// -----------------------------------------------------------------------
@@ -122,6 +135,7 @@ contract ThenaOracle is IOracle, Owned {
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
     function setParams(uint56 secs_, uint128 minPrice_) external onlyOwner {
+        if (secs_ < MIN_SECS) revert ThenaOracle__InvalidWindow();
         secs = secs_;
         minPrice = minPrice_;
         emit SetParams(secs_, minPrice_);

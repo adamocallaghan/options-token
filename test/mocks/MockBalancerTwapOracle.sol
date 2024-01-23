@@ -15,10 +15,10 @@ contract MockVault is IVault {
 
     function getPool(bytes32 poolId) external view override returns (address, PoolSpecialization) {}
 
-    function getPoolTokens(bytes32 poolId) external view override returns (address[] memory tokens, uint256[] memory, uint256) {
-        tokens = new address[](2);
-        tokens[0] = tokens[0];
-        tokens[1] = tokens[1];
+    function getPoolTokens(bytes32 poolId) external view override returns (address[] memory tokens_, uint256[] memory, uint256) {
+        tokens_ = new address[](2);
+        tokens_[0] = tokens[0];
+        tokens_[1] = tokens[1];
     }
 
     function swap(SingleSwap memory singleSwap, FundManagement memory funds, uint256 limit, uint256 deadline)

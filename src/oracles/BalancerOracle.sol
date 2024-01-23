@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IVault} from "../interfaces/IBalancerVault.sol";
@@ -27,6 +28,8 @@ contract BalancerOracle is IOracle, Owned {
     /// Errors
     /// -----------------------------------------------------------------------
 
+    error BalancerOracle__InvalidParams();
+    error BalancerOracle__InvalidWindow();
     error BalancerOracle__TWAPOracleNotReady();
     error BalancerOracle__BelowMinPrice();
 
@@ -39,6 +42,8 @@ contract BalancerOracle is IOracle, Owned {
     /// -----------------------------------------------------------------------
     /// Immutable parameters
     /// -----------------------------------------------------------------------
+
+    uint256 internal constant MIN_SECS = 20 minutes;
 
     /// @notice The Balancer TWAP oracle contract (usually a pool with oracle support)
     IBalancerTwapOracle public immutable balancerTwapOracle;
@@ -71,6 +76,11 @@ contract BalancerOracle is IOracle, Owned {
 
         IVault vault = balancerTwapOracle.getVault();
         (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle_.getPoolId());
+        
+        if (ERC20(poolTokens[0]).decimals() != 18 || ERC20(poolTokens[1]).decimals() != 18) revert BalancerOracle__InvalidParams();
+        if (token != poolTokens[0] && token != poolTokens[1]) revert BalancerOracle__InvalidParams();
+        if (secs_ < MIN_SECS) revert BalancerOracle__InvalidWindow();
+
         isToken0 = poolTokens[0] == token;
 
         secs = secs_;
@@ -124,6 +134,19 @@ contract BalancerOracle is IOracle, Owned {
         if (price < minPrice_) revert BalancerOracle__BelowMinPrice();
     }
 
+    /// @inheritdoc IOracle
+    function getTokens() external view override returns (address paymentToken, address underlyingToken) {
+        IVault vault = balancerTwapOracle.getVault();
+        (address[] memory poolTokens,,) = vault.getPoolTokens(balancerTwapOracle.getPoolId());
+        if (isToken0) {
+            paymentToken = poolTokens[1];
+            underlyingToken = poolTokens[0];
+        } else {
+            paymentToken = poolTokens[0];
+            underlyingToken = poolTokens[1];
+        }
+    }
+
     /// -----------------------------------------------------------------------
     /// Owner functions
     /// -----------------------------------------------------------------------
@@ -135,6 +158,7 @@ contract BalancerOracle is IOracle, Owned {
     /// @param minPrice_ The minimum value returned by getPrice(). Maintains a floor for the
     /// price to mitigate potential attacks on the TWAP oracle.
     function setParams(uint56 secs_, uint56 ago_, uint128 minPrice_) external onlyOwner {
+        if (secs_ < MIN_SECS) revert BalancerOracle__InvalidWindow();
         secs = secs_;
         ago = ago_;
         minPrice = minPrice_;

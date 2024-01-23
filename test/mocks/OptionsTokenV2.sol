@@ -5,15 +5,15 @@ import {OwnableUpgradeable} from "oz-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC20Upgradeable} from "oz-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {UUPSUpgradeable} from "oz-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import {IOptionsToken} from "./interfaces/IOptionsToken.sol";
-import {IOracle} from "./interfaces/IOracle.sol";
-import {IExercise} from "./interfaces/IExercise.sol";
+import {IOptionsToken} from "../../src/interfaces/IOptionsToken.sol";
+import {IOracle} from "../../src/interfaces/IOracle.sol";
+import {IExercise} from "../../src/interfaces/IExercise.sol";
 
 /// @title Options Token
 /// @author Eidolon & lookee
 /// @notice Options token representing the right to perform an advantageous action,
 /// such as purchasing the underlying token at a discount to the market price.
-contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract OptionsTokenV2 is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
@@ -26,7 +26,9 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     /// Events
     /// -----------------------------------------------------------------------
 
-    event Exercise(address indexed sender, address indexed recipient, uint256 amount, address data0, uint256 data1, uint256 data2);
+    event Exercise(
+        address indexed sender, address indexed recipient, uint256 amount, address data0, uint256 data1, uint256 data2
+    );
     event SetOracle(IOracle indexed newOracle);
     event SetExerciseContract(address indexed _address, bool _isExercise);
 
@@ -47,6 +49,8 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
     mapping(address => bool) public isExerciseContract;
     uint256 public upgradeProposalTime;
     address public nextImplementation;
+
+    uint256 public constant newVar = 123456;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
