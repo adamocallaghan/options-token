@@ -118,6 +118,11 @@ contract LockedLPExercise is BaseExercise {
 
     /// Owner functions
 
+    function changeLockedTime(uint40 newLockedTime_) external onlyOwner {
+        if (block.timestamp > newLockedTime) revert Exercise__InvalidLockTime();
+        lockedUntilTime = newLockedTime_;
+    }
+
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
     function setOracle(IOracle oracle_) external onlyOwner {
