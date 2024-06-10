@@ -11,23 +11,23 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 
 
-/// @title Options Token Exercise Contract
+/// @title Options Token Vested Exercise Contract
 /// @author @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
-/// in this case, by purchasing the underlying token at a discount to the market price.
+/// in this case, by purchasing the underlying token at a discount to the market price 
+/// and vested/released linearly over a set period of time per account.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract LockedLPExercise is BaseExercise {
+contract VestedTokenRelease is BaseExercise {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
 
     /// Errors
-    error Exercise__SlippageTooHigh();
-    error Exercise__PastDeadline();
+    error Exercise__RequestedAmountTooHigh();
+    error Exercise__VestHasNotStarted();
     error Exercise__MultiplierOutOfRange();
     error Exercise__InvalidOracle();
-    error Exercise__StillLocked();
-    error Exercise__InvalidLockTime();
+    error Exercise__VestHasNotBeenSet(address reciever);
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -63,8 +63,17 @@ contract LockedLPExercise is BaseExercise {
     /// Used when the contract does not have enough tokens to pay the user
     mapping (address => uint256) public credit;
 
-    /// @notice The start time of when LP/underlying tokens can be claimed
-    uint40 public lockedUntilTime;
+    /// @notice Mapping of an address to their vested release parameters
+    mapping(address => VestedReleaseParams) public receiversParams;
+
+    //@question why is this "struct" type outside of the contract in the other exercise option? 
+    struct VestedReleaseParams {
+        address reciever;
+        uint256 totalAmount;
+        uint256 claimedAmount;
+        uint40 startTime;
+        uint40 endTime;
+    }
 
     constructor(
         OptionsToken oToken_,
@@ -74,13 +83,10 @@ contract LockedLPExercise is BaseExercise {
         IOracle oracle_,
         uint256 multiplier_,
         address[] memory feeRecipients_,
-        uint256[] memory feeBPS_,
-        uint40 lockedUntilTime_
+        uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
-        if (block.timestamp > lockedUntilTime_) revert Exercise__InvalidLockTime();
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
-        lockedUntilTime = lockedUntilTime_;
 
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
@@ -103,13 +109,12 @@ contract LockedLPExercise is BaseExercise {
         onlyOToken
         returns (uint256 paymentAmount, address, uint256, uint256)
     {
-        if(block.timestamp < lockedUntilTime) revert Exercise__StillLocked();
+        if (receiversParams[from] = 0) revert Exercise__VestHasNotBeenSet(_params.reciever);
+
         return _exercise(from, amount, recipient, params);
     }
 
     function claim(address to) external {
-        if(block.timestamp < lockedUntilTime) revert Exercise__StillLocked();
-
         uint256 amount = credit[msg.sender];
         if (amount == 0) return;
         credit[msg.sender] = 0;
@@ -117,11 +122,6 @@ contract LockedLPExercise is BaseExercise {
     }
 
     /// Owner functions
-
-    function changeLockedTime(uint40 newLockedTime_) external onlyOwner {
-        if (block.timestamp > newLockedTime) revert Exercise__InvalidLockTime();
-        lockedUntilTime = newLockedTime_;
-    }
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -152,6 +152,19 @@ contract LockedLPExercise is BaseExercise {
         emit SetMultiplier(multiplier_);
     }
 
+    ///@notice Allows the owner of the contract to set the vesting parameters for an account
+    ///@param account The account to set the vesting parameters for
+    ///@param params The vesting parameters to set, including the total amount, claimed amount, start time, and end time
+    function setAccountParams(address account, VestedReleaseParams calldata params) external onlyOwner {
+         receiversParams[account] = VestedReleaseParams(
+            params.reciever,
+            params.totalAmount,
+            params.claimedAmount,
+            params.startTime,
+            params.endTime
+        );
+    }
+
     /// Internal functions
 
     function _exercise(address from, uint256 amount, address recipient /*bytes memory params*/)
@@ -159,12 +172,18 @@ contract LockedLPExercise is BaseExercise {
         virtual
         returns (uint256 paymentAmount, address, uint256, uint256)
     {
+        // decode params
+        VestedReleaseParams memory _params = receiversParams[from];
+
+        if (block.timestamp < _params.startTime) revert Exercise__VestHasNotStarted();
+
         // apply multiplier to price
-        //@note if we always round up wont the last person to cliam maybe not get all their tokens?
         uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
 
-        paymentAmount = amount.mulWadUp(price);
-        if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
+        // get how many tokens have been released
+        paymentAmount = calculateTokensReleased(from).mulWadUp(price);
+
+        if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
 
         // transfer payment tokens from user to the set receivers
         distributeFeesFrom(paymentAmount, paymentToken, from);
@@ -185,11 +204,27 @@ contract LockedLPExercise is BaseExercise {
         credit[to] += remainingAmount;
     }
 
+    /// Helper Functions
     /// View functions
 
     /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
     /// @param amount The amount of options tokens to exercise
     function getPaymentAmount(uint256 amount) external view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
+    }
+
+    function getAccountVestedReleaseParams(address account) external view returns (VestedReleaseParams memory) {
+        return receiversParams[account];
+    }
+
+    /// @notice Calculates the amount of tokens released for the given account.
+    /// @param account_ The account to calculate the tokens released for
+    function calculateTokensReleased(address account_) external view returns (uint256) {
+        VestedReleaseParams memory params = receiversParams[account_];
+        if (block.timestamp < params.startTime) return 0;
+        if (block.timestamp >= params.endTime) return params.totalAmount;
+        uint256 timePassed = block.timestamp - params.startTime;
+        uint256 totalTime = params.endTime - params.startTime;
+        return params.totalAmount.mulDiv(timePassed, totalTime);
     }
 }
