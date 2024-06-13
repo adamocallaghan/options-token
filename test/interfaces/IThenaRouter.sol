@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.13;
 interface IThenaRouter {
     function swapExactTokensForTokensSimple(
         uint256 amountIn,

@@ -59,12 +59,18 @@ contract VestedTokenRelease is BaseExercise {
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
 
+    /// @notice The length of time tokens will be vested before they are begin to release to the user
+    uint256 public vestingTime;
+
+    /// @notice The length of time it takes for the vested tokens to be fully released
+    uint256 public releasePeriod;
+
     /// @notice The amount of payment tokens the user can claim
     /// Used when the contract does not have enough tokens to pay the user
     mapping (address => uint256) public credit;
 
     /// @notice Mapping of an address to their vested release parameters
-    mapping(address => VestedReleaseParams) public receiversParams;
+    mapping(address => VestedReleaseParams[]) public userVests;
 
     //@question why is this "struct" type outside of the contract in the other exercise option? 
     struct VestedReleaseParams {
@@ -73,8 +79,11 @@ contract VestedTokenRelease is BaseExercise {
         uint256 claimedAmount;
         uint40 startTime;
         uint40 endTime;
+        uint40 releaseStartTime;
+
     }
 
+    //@todo add checks for vesting times
     constructor(
         OptionsToken oToken_,
         address owner_,
@@ -82,11 +91,15 @@ contract VestedTokenRelease is BaseExercise {
         IERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
+        uint256 vestingTime_,
+        uint256 releasePeriod_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
+        vestingTime = vestingTime_;
+        releasePeriod = releasePeriod_;
 
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
@@ -96,24 +109,40 @@ contract VestedTokenRelease is BaseExercise {
 
     /// External functions
 
-    /// @notice Exercises options tokens to purchase the underlying tokens.
+    /// @notice Exercises options tokens to purchase the underlying tokens. This will start the vesting period of the underlying tokens
     /// @dev The oracle may revert if it cannot give a secure result.
     /// @param from The user that is exercising their options tokens
     /// @param amount The amount of options tokens to exercise
     /// @param recipient The recipient of the purchased underlying tokens
-    /// @param params Extra parameters to be used by the exercise function
-    function exercise(address from, uint256 amount, address recipient /*bytes memory params*/)
+    function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
-        virtual
         override
         onlyOToken
         returns (uint256 paymentAmount, address, uint256, uint256)
     {
-        if (receiversParams[from] = 0) revert Exercise__VestHasNotBeenSet(_params.reciever);
-
+        // @todo set the vesting params for the user 
+        _setVestForUser(recipient, amount);
         return _exercise(from, amount, recipient, params);
     }
 
+    ///@notice Allows the owner of the contract to set the vesting parameters for an account
+    ///@param receiver_ The account to set the vesting parameters for
+    ///@param totalAmount_ The total amount of tokens to be vested  
+    ///@param startTime_ The time the vesting starts
+    ///@param endTime_ The time the vesting ends
+    function _setVestForUser(address receiver_, uint256 totalAmount_) internal {
+         // Create a memory struct and add it to the user's array
+        VestedReleaseParams memory newParams = VestedReleaseParams({
+            receiver: receiver_,
+            totalAmount: totalAmount_,
+            claimedAmount: 0,
+            startTime: uint40(block.timestamp),
+            releaseStartTime: uint40(block.timestamp + vestingTime),
+            endTime: uint40(block.timestamp + vestingTime + releasePeriod)
+        });
+
+        userVests[receiver_].push(newParams);
+    }
     function claim(address to) external {
         uint256 amount = credit[msg.sender];
         if (amount == 0) return;
@@ -152,28 +181,17 @@ contract VestedTokenRelease is BaseExercise {
         emit SetMultiplier(multiplier_);
     }
 
-    ///@notice Allows the owner of the contract to set the vesting parameters for an account
-    ///@param account The account to set the vesting parameters for
-    ///@param params The vesting parameters to set, including the total amount, claimed amount, start time, and end time
-    function setAccountParams(address account, VestedReleaseParams calldata params) external onlyOwner {
-         receiversParams[account] = VestedReleaseParams(
-            params.reciever,
-            params.totalAmount,
-            params.claimedAmount,
-            params.startTime,
-            params.endTime
-        );
-    }
+
 
     /// Internal functions
 
-    function _exercise(address from, uint256 amount, address recipient /*bytes memory params*/)
+    function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
-        virtual
+        //override
         returns (uint256 paymentAmount, address, uint256, uint256)
     {
         // decode params
-        VestedReleaseParams memory _params = receiversParams[from];
+        VestedReleaseParams[] memory _params = userVests[from];
 
         if (block.timestamp < _params.startTime) revert Exercise__VestHasNotStarted();
 
@@ -213,14 +231,14 @@ contract VestedTokenRelease is BaseExercise {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 
-    function getAccountVestedReleaseParams(address account) external view returns (VestedReleaseParams memory) {
-        return receiversParams[account];
+    function getAccountVestedReleaseParams(address account) external view returns (VestedReleaseParams[] memory) {
+        return userVests[account];
     }
 
     /// @notice Calculates the amount of tokens released for the given account.
     /// @param account_ The account to calculate the tokens released for
-    function calculateTokensReleased(address account_) external view returns (uint256) {
-        VestedReleaseParams memory params = receiversParams[account_];
+    function calculateTokensReleased(address account_) public view returns (uint256) {
+        VestedReleaseParams memory params = userVests[account_];
         if (block.timestamp < params.startTime) return 0;
         if (block.timestamp >= params.endTime) return params.totalAmount;
         uint256 timePassed = block.timestamp - params.startTime;
