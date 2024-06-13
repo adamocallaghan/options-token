@@ -61,7 +61,7 @@ contract FixedOptionsTokenTest is Test {
         tokens[0] = address(paymentToken);
         tokens[1] = underlyingToken;
 
-        price = 1e18;
+        price = 1e22;
         startTime = block.timestamp + 1 hours;
         endTime = block.timestamp + 4 weeks;
 
@@ -116,7 +116,7 @@ contract FixedOptionsTokenTest is Test {
         optionsToken.mint(address(this), amount);
 
         // mint payment tokens
-        uint256 expectedPaymentAmount = amount.mulWadUp(price.mulDivUp(PRICE_MULTIPLIER, MIN_PRICE_DENOM));
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
         paymentToken.mint(address(this), expectedPaymentAmount);
 
         // exercise options tokens

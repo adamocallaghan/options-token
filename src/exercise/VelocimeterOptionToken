@@ -545,6 +545,7 @@ contract OptionTokenV2 is ERC20, AccessControl {
         emit ExerciseLp(msg.sender, _recipient, _amount, paymentAmount, lpAmount);
     }
 
+
     function _takeTeamFee(address token, uint256 paymentAmount) internal returns (uint256 remaining) {
         uint256 _teamFee = (paymentAmount * teamFee) / 100;
         _safeTransferFrom(token, msg.sender, treasury, _teamFee);
