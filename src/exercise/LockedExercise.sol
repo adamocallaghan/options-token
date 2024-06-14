@@ -12,6 +12,24 @@ import {OptionsToken} from "../OptionsToken.sol";
 
 import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
 
+interface IBaseV1Factory {
+    function allPairsLength() external view returns (uint256);
+    function isPair(address pair) external view returns (bool);
+    function pairCodeHash() external pure returns (bytes32);
+    function getPair(address tokenA, address token, bool stable) external view returns (address);
+    function createPair(address tokenA, address tokenB, bool stable) external returns (address pair);
+}
+
+interface IBaseV1Pair {
+    function transferFrom(address src, address dst, uint256 amount) external returns (bool);
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external;
+    function burn(address to) external returns (uint256 amount0, uint256 amount1);
+    function mint(address to) external returns (uint256 liquidity);
+    function getReserves() external view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast);
+    function getAmountOut(uint256, address) external view returns (uint256);
+}
+
 struct LockedExerciseParams {
     uint256 maxPaymentAmount;
     uint256 deadline;
@@ -45,6 +63,7 @@ contract LockedExercise is BaseExercise {
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetRouter(address indexed newRouter);
+    event SetFactory(address indexed newFactory);
     event ExerciseLp();
 
     /// Constants
@@ -65,10 +84,14 @@ contract LockedExercise is BaseExercise {
 
     /// @notice The router for adding liquidity
     IThenaRouter public router;
-    
+
     /// @notice The oracle contract that provides the current price to purchase
     /// the underlying token while exercising options (the strike price)
     IOracle public oracle;
+
+    IBaseV1Factory public factory;
+
+    IBaseV1Pair public pair;
 
     /// @notice the discount given during exercising with locking to the LP
     uint256 public maxLPDiscount = 200; //  User pays 20%
@@ -86,6 +109,7 @@ contract LockedExercise is BaseExercise {
         IERC20 underlyingToken_,
         IOracle oracle_,
         address router_,
+        IBaseV1Factory factory_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
@@ -94,9 +118,13 @@ contract LockedExercise is BaseExercise {
 
         _setOracle(oracle_);
         _setRouter(router_);
+        _setFactory(factory_);
 
         emit SetOracle(oracle_);
         emit SetRouter(router_);
+        emit SetFactory(factory_);
+
+        pair = factory.getPair(paymentToken, underlyingToken, false);
     }
 
     /// External functions
@@ -106,12 +134,10 @@ contract LockedExercise is BaseExercise {
     }
 
     function retrieveLp(uint256 lpPosition) external {
-        for() {
-            UserLpLocks[msg.sender]
-        }
-        if() {
+        if (block.timestamp > UserLpLocks[msg.sender][lpPosition].unlockTime) {
             revert Exercise__LpNotUnlocked();
         }
+        pair.transferFrom(address(this), msg.sender, UserLpLocks[msg.sender][lpPosition].lpTokens);
     }
 
     /// Internal functions
@@ -138,39 +164,22 @@ contract LockedExercise is BaseExercise {
         // distributeFeesFrom() is not required if paymentToken is being paired with underlying to form LP
         // but some exercise fee for the protocol will likely be taken
 
-        // pay() is not required as underlying tokens are being paired with the paymentToken to form LP
-
-        // burn() is called on the oToken contract in our implementation
-
         (uint256 paymentAmount, uint256 paymentAmountToAddLiquidity) = getPaymentTokenAmountForExerciseLp(amount, multiplier);
         if (paymentAmount > _params.maxPaymentAmount) {
             revert Exercise__SlippageTooHigh();
         }
 
-        // Create Lp for users (Solidly-forked DEX)
+        // Create Lp for users
         _safeApprove(underlyingToken, router, amount);
         _safeApprove(paymentToken, router, paymentAmountToAddLiquidity);
-        (,, lpTokenAmount) = router.addLiquidity(
-            underlyingToken, paymentToken, false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
-        );
+        (,, lpTokenAmount) =
+            router.addLiquidity(underlyingToken, paymentToken, false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp);
 
         // Amount of LP tokens a user has on the exercised position & the time the LP can be retrieved
         UserLpLocks[msg.sender].push(UserLpLock(lpTokenAmount, lpUnlockTime)); // lpUnlockTime to be set above
-        uint256 lpIndexPosition = UserLpLocks[msg.sender].length();
+        uint256 lpIndexPosition = UserLpLocks[msg.sender].length;
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpAmount, lpIndexPosition, lpUnlockTime);
-
-    }
-
-    function _pay(address to, uint256 amount) internal returns (uint256 remainingAmount) {
-        uint256 balance = underlyingToken.balanceOf(address(this));
-        if (amount > balance) {
-            underlyingToken.safeTransfer(to, balance);
-            remainingAmount = amount - balance;
-        } else {
-            underlyingToken.safeTransfer(to, amount);
-        }
-        credit[to] += remainingAmount;
     }
 
     /// Owner functions
@@ -191,7 +200,7 @@ contract LockedExercise is BaseExercise {
     }
 
     /// @notice Sets the router contract. Only callable by the owner.
-    /// @param oracle_ The new router contract
+    /// @param router_ The new router contract
     function setRouter(address router_) external onlyOwner {
         _setRouter(router_);
     }
@@ -200,6 +209,18 @@ contract LockedExercise is BaseExercise {
         // *** need to check router validity here ***
         router = router_;
         emit SetRouter(router_);
+    }
+
+    /// @notice Sets the facotry contract. Only callable by the owner.
+    /// @param factory_ The new factory contract
+    function setFactory(IBaseV1Factory factory_) external onlyOwner {
+        _setFactory(factory_);
+    }
+
+    function _setFactory(IBaseV1Factory factory_) internal {
+        // *** need to check factory validity here ***
+        factory = factory_;
+        emit SetFactory(factory_);
     }
 
     /// View functions
@@ -223,8 +244,10 @@ contract LockedExercise is BaseExercise {
     /// @return The amount of payment tokens to pay to purchase the underlying tokens
     function getLpDiscountedPrice(uint256 _amount, uint256 _discount) public view returns (uint256) {
         return (getTimeWeightedAveragePrice(_amount) * _discount) / 100;
+        // @todo this is: (market price * multiplier) / 100 <- check the maths for our multiplier
     }
 
+    /// @todo *** THIS JUST GETS THE TWAP PRICE, WE CAN PROBABLY JUST USE THE DISCOUNTEXERCISE PRICE IMPLEMENTATION INSTEAD
     /// @notice Returns the average price in payment tokens over 2 hours for a given amount of underlying tokens
     /// @param _amount The amount of underlying tokens to purchase
     /// @return The amount of payment tokens
