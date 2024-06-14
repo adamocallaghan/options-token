@@ -518,6 +518,7 @@ contract OptionTokenV2 is ERC20, AccessControl {
 
         // burn callers tokens
         _burn(msg.sender, _amount);
+        
         (uint256 paymentAmount, uint256 paymentAmountToAddLiquidity) = getPaymentTokenAmountForExerciseLp(_amount, _discount);
         if (paymentAmount > _maxPaymentAmount) {
             revert OptionToken_SlippageTooHigh();

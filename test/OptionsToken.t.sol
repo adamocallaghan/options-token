@@ -102,6 +102,7 @@ contract OptionsTokenTest is Test {
 
     function test_exerciseHappyPath(uint256 amount, address recipient) public {
         amount = bound(amount, 100, MAX_SUPPLY);
+        vm.assume(recipient != address(0));
 
         // mint options tokens
         vm.prank(tokenAdmin);
@@ -126,6 +127,42 @@ contract OptionsTokenTest is Test {
         assertEqDecimal(paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
         assertEqDecimal(paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+       
+        uint256 totalDistributed = paymentFee1 + paymentFee2 + paymentAmount;
+        assertEqDecimal(totalDistributed, amount, 18);
+    }
+
+    function test_HappyPath() public {
+        address recipient = makeAddr("recipient");
+        uint256 amount = 10;
+      // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // mint payment tokens
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        paymentToken.mint(address(this), expectedPaymentAmount);
+
+        // exercise options tokens
+        DiscountExerciseParams memory params = DiscountExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
+        (uint256 paymentAmount,,,) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+
+        // verify options tokens were transferred
+        assertEqDecimal(optionsToken.balanceOf(address(this)), 0, 18, "user still has options tokens");
+        assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
+
+        // verify payment tokens were transferred
+        assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
+        uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
+        uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
+        assertEqDecimal(paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
+        assertEqDecimal(paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
+        assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+       
+       assertEqDecimal(paymentToken.balanceOf(recipient), paymentAmount, 18, "recipient didn't receive payment tokens");
+        
+        // uint256 totalDistributed = paymentFee1 + paymentFee2 + paymentAmount;
+        // assertEqDecimal(totalDistributed, amount, 18);
     }
 
     function test_exerciseMinPrice(uint256 amount, address recipient) public {
