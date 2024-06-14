@@ -143,6 +143,7 @@ contract VestedTokenRelease is BaseExercise {
 
         userVests[receiver_].push(newParams);
     }
+
     function claim(address to) external {
         uint256 amount = credit[msg.sender];
         if (amount == 0) return;
@@ -206,7 +207,7 @@ contract VestedTokenRelease is BaseExercise {
         // transfer payment tokens from user to the set receivers
         distributeFeesFrom(paymentAmount, paymentToken, from);
         // transfer underlying tokens to recipient
-        _pay(recipient, amount);
+        _pay(recipient, amount); // @todo set vest here and add withdraw func
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }

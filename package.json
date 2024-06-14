@@ -22,6 +22,8 @@
     "hardhat": "^2.19.4"
   },
   "dependencies": {
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.10"
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@sablier/v2-core": "^1.1.2",
+    "@sablier/v2-periphery": "^1.1.1"
   }
 }
