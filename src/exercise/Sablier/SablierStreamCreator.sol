@@ -79,10 +79,7 @@ abstract contract SablierStreamCreator {
         streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
     }
 
-    function createTimelock(uint128 totalAmount_, uint256 amount0_, uint40 unlockTime_, address token_, address recipient_)
-        public
-        returns (uint256 streamId)
-    {
+    function createTimelock(uint256 amount_, uint40 unlockTime_, address token_, address recipient_) public returns (uint256 streamId) {
         // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
         IERC20(token_).transferFrom(msg.sender, address(this), amount_);
 
@@ -94,11 +91,11 @@ abstract contract SablierStreamCreator {
         // Declare the function parameters
         params.sender = msg.sender; // The sender will be able to cancel the stream
         params.recipient = recipient_; // The recipient of the streamed assets
-        params.totalAmount = totalAmount_; // Total amount is the amount inclusive of all fees
+        params.totalAmount = amount_; // @changed to be amount_ as there is a single segment in a timelock
         params.asset = IERC20(token_); // The streaming asset
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not
-        params.startTime = unlockTime; // @note params.startTime is now specifically passed in as the unlockTime, allowing the creation of specific unlocks
+        params.startTime = unlockTime; // @changed params.startTime is now specifically passed in as the unlockTime, allowing the creation of specific unlocks
         params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
 
         // @note can't find a specific reference to Timelock in the docs
