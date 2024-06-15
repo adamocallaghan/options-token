@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {VestedTokenRelease} from "../src/exercise/VestedTokenRelease.sol";
+import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
@@ -12,7 +12,7 @@ import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
 import {TestERC20} from "./mocks/TestERC20.sol";
 
 
-contract VestedTokenReleaseTest is Test {
+contract VestedTokenExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
@@ -27,7 +27,7 @@ contract VestedTokenReleaseTest is Test {
     uint256[] feeBPS_;
 
     OptionsToken optionsToken;
-    VestedTokenRelease exerciser;
+    VestedTokenExercise exerciser;
     TestERC20 paymentToken;
     address underlyingToken;
 
@@ -63,7 +63,7 @@ contract VestedTokenReleaseTest is Test {
         price = 1e18;
 
         //@todo need a mock oracle
-        exerciser = new VestedTokenRelease(
+        exerciser = new VestedTokenExercise(
             optionsToken,
             owner,
             IERC20(paymentToken),

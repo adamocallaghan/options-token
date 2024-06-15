@@ -9,6 +9,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
+import {SablierStreamCreator} from "src/exercise/Sablier/SablierStreamCreator.sol";
 
 
 /// @title Options Token Vested Exercise Contract
@@ -17,7 +18,7 @@ import {OptionsToken} from "../OptionsToken.sol";
 /// in this case, by purchasing the underlying token at a discount to the market price 
 /// and vested/released linearly over a set period of time per account.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract VestedTokenRelease is BaseExercise {
+contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
@@ -69,19 +70,19 @@ contract VestedTokenRelease is BaseExercise {
     /// Used when the contract does not have enough tokens to pay the user
     mapping (address => uint256) public credit;
 
-    /// @notice Mapping of an address to their vested release parameters
-    mapping(address => VestedReleaseParams[]) public userVests;
+    // /// @notice Mapping of an address to their vested release parameters
+    // mapping(address => VestedReleaseParams[]) public userVests;
 
-    //@question why is this "struct" type outside of the contract in the other exercise option? 
-    struct VestedReleaseParams {
-        address reciever;
-        uint256 totalAmount;
-        uint256 claimedAmount;
-        uint40 startTime;
-        uint40 endTime;
-        uint40 releaseStartTime;
+    // //@question why is this "struct" type outside of the contract in the other exercise option? 
+    // struct VestedReleaseParams {
+    //     address reciever;
+    //     uint256 totalAmount;
+    //     uint256 claimedAmount;
+    //     uint40 startTime;
+    //     uint40 endTime;
+    //     uint40 releaseStartTime;
 
-    }
+    // }
 
     //@todo add checks for vesting times
     constructor(
@@ -120,29 +121,9 @@ contract VestedTokenRelease is BaseExercise {
         onlyOToken
         returns (uint256 paymentAmount, address, uint256, uint256)
     {
-        // @todo set the vesting params for the user 
-        _setVestForUser(recipient, amount);
         return _exercise(from, amount, recipient, params);
     }
 
-    ///@notice Allows the owner of the contract to set the vesting parameters for an account
-    ///@param receiver_ The account to set the vesting parameters for
-    ///@param totalAmount_ The total amount of tokens to be vested  
-    ///@param startTime_ The time the vesting starts
-    ///@param endTime_ The time the vesting ends
-    function _setVestForUser(address receiver_, uint256 totalAmount_) internal {
-         // Create a memory struct and add it to the user's array
-        VestedReleaseParams memory newParams = VestedReleaseParams({
-            receiver: receiver_,
-            totalAmount: totalAmount_,
-            claimedAmount: 0,
-            startTime: uint40(block.timestamp),
-            releaseStartTime: uint40(block.timestamp + vestingTime),
-            endTime: uint40(block.timestamp + vestingTime + releasePeriod)
-        });
-
-        userVests[receiver_].push(newParams);
-    }
 
     function claim(address to) external {
         uint256 amount = credit[msg.sender];
