@@ -42,6 +42,20 @@ This project uses [Foundry](https://github.com/gakonst/foundry) as the developme
 forge install
 ```
 
+Install Sablier contracts and dependencies. This will create and place then into node_modules
+
+```
+bun add @sablier/v2-core @sablier/v2-periphery
+```
+
+And add the remappings
+
+```
+"@sablier/v2-core=node_modules/@sablier/v2-core/" >> remappings.txt
+"@sablier/v2-periphery=node_modules/@sablier/v2-periphery/" >> remappings.txt
+"@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/" >> remappings.txt
+"@prb/math/=node_modules/@prb/math/" >> remappings.txt```
+```
 ### Compilation
 
 ```

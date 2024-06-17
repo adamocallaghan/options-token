@@ -100,7 +100,9 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetOracle(oracle_);
     }
 
-    /// External functions
+    //////////////////////////
+    /// External functions ///
+    //////////////////////////
 
     /// @notice Exercises options tokens to purchase the underlying tokens. This will start the vesting period of the underlying tokens
     /// @dev The oracle may revert if it cannot give a secure result.
@@ -117,7 +119,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         return _exercise(from, amount, recipient, params);
     }
 
-
+    //@todo do we want to keep this in here and credit users if there is not enough tokens in the contract to create the whole stream?
+    //@note the would need to create a stream if we keep the credit system in
     function claim(address to) external {
         uint256 amount = credit[msg.sender];
         if (amount == 0) return;
@@ -125,7 +128,14 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         underlyingToken.safeTransfer(to, amount);
     }
 
-    /// Owner functions
+    /// @notice allows the owener of the stream or an approved address to withdraw from the stream. The stream sender can call this function only if the to address is the recipient of the stream.
+    function withdrawFromLinearStream(uint256 streamId, address to, uint128 amount) external {
+        withdrawLinerStream(streamId, to, amount);
+    }
+
+    ///////////////////////
+    /// Owner functions ///
+    ///////////////////////
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -156,14 +166,15 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetMultiplier(multiplier_);
     }
 
-    //@todo need to have a func that cancels stream that only the owner/sender or the stram can call - maybe this goes into the SablierStreamCreator contract??
-    // function cancelStream(uint256 streamId) external onlyOwner {
-    //     sablier.cancelStream(streamId);
-    // }
+    /// @notice Allows the owner/sender of the stream to cancel the stream
+    function cancelLinerStream(uint256 streamId) external onlyOwner {
+        cancelLinearStream(streamId);
+    }
 
 
-
-    /// Internal functions
+    //////////////////////////
+    /// Internal functions ///
+    //////////////////////////
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
@@ -198,8 +209,9 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         credit[to] += remainingAmount;
     }
 
-    /// Helper Functions
-    /// View functions
+    ////////////////////////
+    /// Helper Functions ///
+    ////////////////////////
 
     /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
     /// @param amount The amount of options tokens to exercise

@@ -21,8 +21,12 @@ abstract contract SablierStreamCreator {
         LOCKUP_DYNAMIC = lockupDynamic_;
     }
 
+    /////////////////////////////////
+    /// Stream Creation Functions ///
+    /////////////////////////////////
+
     function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint128 amount_, address token_, address recipient_)
-        public
+        internal
         virtual
         returns (uint256 streamId)
     {
@@ -53,7 +57,7 @@ abstract contract SablierStreamCreator {
 
     //@note could turn the amount0_ and amount1_ into an array of ammounts. Would need to loop through array to pass them into segments here
     function createDynamicStream(uint128 totalAmount_, uint128 amount0_, uint128 amount1_, address token_, address recipient_)
-        public
+        internal
         virtual 
         returns (uint256 streamId)
     {
@@ -87,32 +91,26 @@ abstract contract SablierStreamCreator {
         streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
     }
 
-    function createTimelock(uint128 amount_, uint40 unlockTime_, address token_, address recipient_) public virtual returns (uint256 streamId) {
-        // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
-        IERC20(token_).transferFrom(msg.sender, address(this), amount_);
-
-        // Approve the Sablier contract to pull the tokens from this contract
-        IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
-
-        LockupDynamic.CreateWithMilestones memory params;
-
-        // Declare the function parameters
-        params.sender = msg.sender; // The sender will be able to cancel the stream
-        params.startTime = unlockTime_; // @changed params.startTime is now specifically passed in as the unlockTime, allowing the creation of specific unlocks
-        params.cancelable = true; // Whether the stream will be cancelable or not
-        params.transferable = true; // Whether the stream will be transferable or not
-        params.recipient = recipient_; // The recipient of the streamed assets
-        params.totalAmount = amount_; // @changed to be amount_ as there is a single segment in a timelock
-        params.asset = IERC20(token_); // The streaming asset 
-        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-
-        // @note can't find a specific reference to Timelock in the docs
-        // @note however, creating a segment that is some small, arbitrary amount of seconds (20 here)
-        /// after the unlockTime should stream all the tokens percentibly in one go
-        params.segments = new LockupDynamic.Segment[](1);
-        params.segments[0] = LockupDynamic.Segment({amount: amount_, exponent: ud2x18(1e18), milestone: unlockTime_ + 20 seconds});
-
-        // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
+    ///////////////////////////////////
+    /// Stream Management Functions ///
+    ///////////////////////////////////
+    
+    //@todo access controls
+    function cancelLinearStream(uint256 streamId) internal virtual {
+        LOCKUP_LINEAR.cancel(streamId);
     }
+
+    function cancelMultipleLinearStreams(uint256[] calldata streamIds) internal virtual {
+        LOCKUP_LINEAR.cancelMultiple(streamIds);
+    }
+
+    function withdrawLinerStream(uint256 streamId, address to, uint128 amount) internal virtual {
+        LOCKUP_LINEAR.withdraw(streamId, to, amount);
+    }
+
+    function withdrawMultipleLinearStreams(uint256[] calldata streamIds, address to, uint128[] calldata amounts) internal virtual {
+        LOCKUP_LINEAR.withdrawMultiple(streamIds, to, amounts);
+    }
+
+    
 }
