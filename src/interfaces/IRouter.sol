@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-interface IRouter01 {
+interface IRouter {
     struct route {
         address from;
         address to;

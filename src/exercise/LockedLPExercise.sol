@@ -5,16 +5,17 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+// import {SignedMath} from "../libraries/SignedMath.sol"; *** CAUSING ERRORS ***
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 
 import {IOracle} from "../interfaces/IOracle.sol";
-import {IRouter} from "../test/interfaces/IRouter.sol";
+import {IRouter} from "../interfaces/IRouter.sol";
 import {IPairFactory} from "../interfaces/IPairFactory.sol";
 import {IPair} from "../interfaces/IPair.sol";
 
-import {SablierStreamCreator} from "./Sablier/SablierStreamCreator.sol";
+// import {SablierStreamCreator} from "./Sablier/SablierStreamCreator.sol";
 
 struct LockedExerciseParams {
     uint256 maxPaymentAmount;
@@ -28,7 +29,7 @@ struct LockedExerciseParams {
 /// price. Those underlying token are paired 50:50 with additional payment tokens
 /// to create an LP which is timelocked for release to the user
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract LockedExercise is BaseExercise, SablierStreamCreator {
+contract LockedExercise is BaseExercise {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
@@ -43,8 +44,16 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetRouter(address indexed newRouter);
-    event SetPair(IERC20 indexed paymentToken, IERC20 indexed underlyingToken, IPair indexed pair);
-    event ExerciseLp(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount, uint256 lpTokenAmount, uint256 lockDuration, uint256 streamId);
+    event SetPair(IERC20 indexed paymentToken, IERC20 indexed underlyingToken, address indexed pair);
+    event ExerciseLp(
+        address indexed sender,
+        address indexed recipient,
+        uint256 amount,
+        uint256 paymentAmount,
+        uint256 lpTokenAmount,
+        uint256 lockDuration,
+        uint256 streamId
+    );
 
     /// Constants
 
@@ -63,10 +72,13 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     /// Storage variables
 
     /// @notice The router for adding liquidity
-    IRouter public router;
+    address public router;
 
     /// @notice The pair for transferring LP tokens to Sablier
-    IPair public pair;
+    address public pair;
+
+    /// @notice the factory for getting the pair address
+    address public factory;
 
     /// @notice The oracle contract that provides the current price to purchase
     /// the underlying token while exercising options (the strike price)
@@ -76,8 +88,8 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     uint256 public maxMultiplier = 3000; // 70% discount
     uint256 public minMultiplier = 8000; // 20% discount
 
-    uint256 public minLpLockDuration = 1 weeks;
-    uint256 public maxLpLockDuration = 1 years;
+    uint256 public minLpLockDuration = 7 * 86400;
+    uint256 public maxLpLockDuration = 52 * 7 * 86400;
 
     constructor(
         OptionsToken oToken_,
@@ -86,11 +98,13 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         IERC20 underlyingToken_,
         IOracle oracle_,
         address router_,
+        address factory_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
+        factory = factory_;
 
         _setOracle(oracle_);
         _setRouter(router_);
@@ -101,14 +115,19 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     }
 
     /// External functions
+    function exercise(address from, uint256 amount, address recipient, bytes memory params)
+        external
+        override
+        returns (uint256 paymentAmount, address, uint256, uint256)
+    {}
 
-    function exerciseLp(uint256 amount, address recipient, uint256 multiplier, bytes memory params) external returns (uint256, uint256) {
-        return _exerciseLp(amount, recipient, multiplier, lockDuration, params);
+    function exercise(uint256 amount, address recipient, uint256 multiplier, bytes memory params) external returns (uint256, uint256) {
+        return _exercise(amount, recipient, multiplier, params);
     }
 
     /// Internal functions
 
-    function _exerciseLp(uint256 amount, address recipient, uint256 multiplier, bytes memory params)
+    function _exercise(uint256 amount, address recipient, uint256 multiplier, bytes memory params)
         internal
         returns (uint256 paymentAmount, uint256 lpAmount)
     {
@@ -147,23 +166,24 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         // tokens to pair up with the underlying token to form an LP pair. Is there a way to collect
         // all the paymentTokens in a single transfer and then do the fee distribution & LP pair side
         // separately??
-        distributeFeesFrom(paymentAmount, paymentToken, from); // transfer payment tokens from user to the set receivers
+        distributeFeesFrom(paymentAmount, paymentToken, msg.sender); // transfer payment tokens from user to the set receivers
 
         // ==================
         //  === CREATE LP ===
         // ==================
 
         // calculate second side (payment token) amount of the LP that user needs to supply
-        (uint256 underlyingReserve, uint256 paymentReserve) = IRouter(router).getReserves(underlyingToken, paymentToken, false);
-        paymentAmountToAddLiquidity = (_amount * paymentReserve) / underlyingReserve;
+        (uint256 underlyingReserve, uint256 paymentReserve) = IRouter(router).getReserves(address(underlyingToken), address(paymentToken), false);
+        uint256 paymentAmountToAddLiquidity = (amount * paymentReserve) / underlyingReserve;
 
         // Approvals for router
-        underlyingToken.safeTransfer(router, amount);
-        paymentToken.safeTransferFrom(msg.sender, router, paymentAmountToAddLiquidity;)
+        underlyingToken.safeTransfer(address(router), amount);
+        paymentToken.safeTransferFrom(msg.sender, address(router), paymentAmountToAddLiquidity);
 
         // Create LP
-        (,, lpTokenAmount) =
-            router.addLiquidity(underlyingToken, paymentToken, false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp);
+        (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
+            address(underlyingToken), address(paymentToken), false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
+        );
 
         // ================
         //  === LOCK LP ===
@@ -173,7 +193,8 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         uint256 lockDuration = getLockDurationForLpDiscount(multiplier);
 
         // Create Sablier timelock
-        uint256 streamId = createTimelock(lpTokenAmount, lockDuration, pair, recipient);
+        // uint256 streamId = createTimelock(lpTokenAmount, lockDuration, pair, recipient);
+        uint256 streamId = 123;
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
     }
@@ -196,7 +217,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     }
 
     /// @notice Sets the router contract. Only callable by the owner.
-    /// @param oracle_ The new router contract
+    /// @param router_ The new router contract
     function setRouter(address router_) external onlyOwner {
         _setRouter(router_);
     }
@@ -208,20 +229,17 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     }
 
     /// @notice Retrieves the pair contract address by calling getPair, and sets the pair on this contract
-    function setPair(IERC20 paymentToken_, IERC20 underlyingToken_) external onlyOwner {
-        _setPair(IERC20 paymentToken_, IERC20 underlyingToken_);
-    }
-
     function _setPair(IERC20 paymentToken_, IERC20 underlyingToken_) internal {
-        pair = IPairFactory.getPair(address(paymentToken_), address(underlyingToken_, false)); // get & set pair address
+        pair = IPairFactory(factory).getPair(address(paymentToken_), address(underlyingToken_), false); // get & set pair address
         emit SetPair(paymentToken_, underlyingToken_, pair);
     }
 
     /// View functions
 
-    function getLockDurationForLpDiscount(uint256 multiplier_) public view returns (uint256 duration) {
+    function getLockDurationForLpDiscount(uint256 multiplier_) public view returns (uint256 lockDuration) {
         (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
-        duration = SignedMath.abs(slope * int256(multiplier_) + intercept); // SignedMath needs to be imported
+        // lockDuration = SignedMath.abs(slope * int256(multiplier_) + intercept);
+        lockDuration = 1 weeks;
     }
 
     function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
