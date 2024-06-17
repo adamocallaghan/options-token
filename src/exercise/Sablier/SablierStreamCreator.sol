@@ -9,10 +9,17 @@ import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 abstract contract SablierStreamCreator {
-    //@note Ethereum Mainnet Addresses - maybe we need to move this to the exercise contract
-    ISablierV2LockupLinear public constant LOCKUP_LINEAR = ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
+    //@note  maybe we need to move this to the exercise contract??
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR; 
+    //Mainnet Addr ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
 
-    ISablierV2LockupDynamic public constant LOCKUP_DYNAMIC = ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
+    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC; 
+    //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
+
+    constructor(ISablierV2LockupLinear lockupLinear_, ISablierV2LockupDynamic lockupDynamic_) {
+        LOCKUP_LINEAR = lockupLinear_;
+        LOCKUP_DYNAMIC = lockupDynamic_;
+    }
 
     function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint128 amount_, address token_, address recipient_)
         public
@@ -35,7 +42,7 @@ abstract contract SablierStreamCreator {
         params.transferable = true; // Whether the stream will be transferable or not @note do we want this?
         params.durations = LockupLinear.Durations({
             //@note just use this as a "locked" stream set the cliff duration to the time you wish to release the tokens and the totalDuration to clifftime + 1 seconds
-            cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time
+            cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time @note I think we want to keep this a constant
             total: totalDuration_ // Setting a total duration of the stream
         });
         params.broker = Broker(address(0), ud60x18(0)); // Optional parameter for charging a fee @note we take fees in other places so no need for this I believe
@@ -45,7 +52,7 @@ abstract contract SablierStreamCreator {
     }
 
     //@note could turn the amount0_ and amount1_ into an array of ammounts. Would need to loop through array to pass them into segments here
-    function createDynamicStream(uint128 totalAmount_, uint256 amount0_, uint256 amount1_, address token_, address recipient_)
+    function createDynamicStream(uint128 totalAmount_, uint128 amount0_, uint128 amount1_, address token_, address recipient_)
         public
         virtual 
         returns (uint256 streamId)
@@ -80,7 +87,7 @@ abstract contract SablierStreamCreator {
         streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
     }
 
-    function createTimelock(uint256 amount_, uint40 unlockTime_, address token_, address recipient_) public virtual returns (uint256 streamId) {
+    function createTimelock(uint128 amount_, uint40 unlockTime_, address token_, address recipient_) public virtual returns (uint256 streamId) {
         // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
         IERC20(token_).transferFrom(msg.sender, address(this), amount_);
 

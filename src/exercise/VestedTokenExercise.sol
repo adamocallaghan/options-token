@@ -4,7 +4,10 @@ pragma solidity ^0.8.13;
 import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "oz/utils/math/SafeCast.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
+import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
@@ -22,6 +25,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
+    using SafeCast for uint256;
 
     /// Errors
     error Exercise__RequestedAmountTooHigh();
@@ -60,47 +64,35 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
 
-    /// @notice The length of time tokens will be vested before they are begin to release to the user
-    uint256 public vestingTime;
+    /// @notice The length of time tokens will be vested before they are begin to release to the user - this is the cliff
+    uint40 public cliffDuration;
 
-    /// @notice The length of time it takes for the vested tokens to be fully released
-    uint256 public releasePeriod;
+    /// @notice The length of time it takes for the vested tokens to be fully released - this is the totalDuration
+    uint40 public totalDuration;
 
     /// @notice The amount of payment tokens the user can claim
     /// Used when the contract does not have enough tokens to pay the user
     mapping (address => uint256) public credit;
 
-    // /// @notice Mapping of an address to their vested release parameters
-    // mapping(address => VestedReleaseParams[]) public userVests;
-
-    // //@question why is this "struct" type outside of the contract in the other exercise option? 
-    // struct VestedReleaseParams {
-    //     address reciever;
-    //     uint256 totalAmount;
-    //     uint256 claimedAmount;
-    //     uint40 startTime;
-    //     uint40 endTime;
-    //     uint40 releaseStartTime;
-
-    // }
-
     //@todo add checks for vesting times
     constructor(
         OptionsToken oToken_,
         address owner_,
+        ISablierV2LockupLinear lockUpLinear_,
+        ISablierV2LockupDynamic lockUpDynamic_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
-        uint256 vestingTime_,
-        uint256 releasePeriod_,
+        uint40 cliffDuration_,
+        uint40 totalDuration_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
-        vestingTime = vestingTime_;
-        releasePeriod = releasePeriod_;
+        cliffDuration = cliffDuration_;
+        totalDuration = totalDuration_;
 
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
@@ -115,11 +107,12 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// @param from The user that is exercising their options tokens
     /// @param amount The amount of options tokens to exercise
     /// @param recipient The recipient of the purchased underlying tokens
+    // @note don't need params - leave empty
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
         onlyOToken
-        returns (uint256 paymentAmount, address, uint256, uint256)
+        returns (uint256 paymentAmount, address, uint256 tokenId, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -163,43 +156,44 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetMultiplier(multiplier_);
     }
 
+    //@todo need to have a func that cancels stream that only the owner/sender or the stram can call - maybe this goes into the SablierStreamCreator contract??
+    // function cancelStream(uint256 streamId) external onlyOwner {
+    //     sablier.cancelStream(streamId);
+    // }
+
 
 
     /// Internal functions
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
-        //override
-        returns (uint256 paymentAmount, address, uint256, uint256)
+        returns (uint256 paymentAmount, address, uint256 tokenId, uint256)
     {
-        // decode params
-        VestedReleaseParams[] memory _params = userVests[from];
-
-        if (block.timestamp < _params.startTime) revert Exercise__VestHasNotStarted();
 
         // apply multiplier to price
         uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
 
-        // get how many tokens have been released
-        paymentAmount = calculateTokensReleased(from).mulWadUp(price);
+        paymentAmount = amount.mulWadUp(price);
+        // @todo figure out max payment amount - do we need this?
+        // if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
 
-        if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
-
-        // transfer payment tokens from user to the set receivers
+        // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
         distributeFeesFrom(paymentAmount, paymentToken, from);
-        // transfer underlying tokens to recipient
-        _pay(recipient, amount); // @todo set vest here and add withdraw func
+        
+        // create the token stream
+        // @note needs to take a uint128 amount 
+        ( , tokenId) = _createLinearStream(recipient, amount);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
 
-    function _pay(address to, uint256 amount) internal returns (uint256 remainingAmount) {
+    function _createLinearStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 tokenId) { 
         uint256 balance = underlyingToken.balanceOf(address(this));
         if (amount > balance) {
-            underlyingToken.safeTransfer(to, balance);
+            createLinearStream(cliffDuration, totalDuration, balance.toUint128(), address(underlyingToken), to);
             remainingAmount = amount - balance;
         } else {
-            underlyingToken.safeTransfer(to, amount);
+            createLinearStream(cliffDuration, totalDuration, amount.toUint128(), address(underlyingToken), to);
         }
         credit[to] += remainingAmount;
     }
@@ -213,18 +207,16 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 
-    function getAccountVestedReleaseParams(address account) external view returns (VestedReleaseParams[] memory) {
-        return userVests[account];
-    }
-
+    //@note probaly want this function - Sablier shoudl have a function that achieves this.
     /// @notice Calculates the amount of tokens released for the given account.
     /// @param account_ The account to calculate the tokens released for
-    function calculateTokensReleased(address account_) public view returns (uint256) {
-        VestedReleaseParams memory params = userVests[account_];
-        if (block.timestamp < params.startTime) return 0;
-        if (block.timestamp >= params.endTime) return params.totalAmount;
-        uint256 timePassed = block.timestamp - params.startTime;
-        uint256 totalTime = params.endTime - params.startTime;
-        return params.totalAmount.mulDiv(timePassed, totalTime);
-    }
+    // function calculateTokensReleased(address account_) public view returns (uint256) {
+    //     VestedReleaseParams memory params = userVests[account_];
+    //     if (block.timestamp < params.startTime) return 0;
+    //     if (block.timestamp >= params.endTime) return params.totalAmount;
+    //     uint256 timePassed = block.timestamp - params.startTime;
+    //     uint256 totalTime = params.endTime - params.startTime;
+    //     return params.totalAmount.mulDiv(timePassed, totalTime);
+    // }
+
 }
