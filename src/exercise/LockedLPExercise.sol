@@ -20,6 +20,7 @@ import {IPair} from "../interfaces/IPair.sol";
 struct LockedExerciseParams {
     uint256 maxPaymentAmount;
     uint256 deadline;
+    uint256 multiplier;
 }
 
 /// @title Options Token Locked LP Price Exercise Contract
@@ -114,22 +115,28 @@ contract LockedExercise is BaseExercise {
         emit SetRouter(router_);
     }
 
-    /// External functions
+    // /// External functions
+    // function exercise(address from, uint256 amount, address recipient, bytes memory params)
+    //     external
+    //     override
+    //     onlyOToken
+    //     returns (uint256 paymentAmount, address, uint256, uint256)
+    // {}
+
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
+        onlyOToken
         returns (uint256 paymentAmount, address, uint256, uint256)
-    {}
-
-    function exercise(uint256 amount, address recipient, uint256 multiplier, bytes memory params) external returns (uint256, uint256) {
-        return _exercise(amount, recipient, multiplier, params);
+    {
+        return _exercise(from, amount, recipient, params);
     }
 
     /// Internal functions
 
-    function _exercise(uint256 amount, address recipient, uint256 multiplier, bytes memory params)
+    function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
-        returns (uint256 paymentAmount, uint256 lpAmount)
+        returns (uint256 paymentAmount, address, uint256, uint256)
     {
         // ===============
         //  === CHECKS ===
@@ -141,7 +148,7 @@ contract LockedExercise is BaseExercise {
         if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
 
         // multiplier validity
-        if (multiplier > minMultiplier || multiplier < maxMultiplier) {
+        if (_params.multiplier > minMultiplier || _params.multiplier < maxMultiplier) {
             revert Exercise__InvalidMultiplier();
         }
 
@@ -150,7 +157,7 @@ contract LockedExercise is BaseExercise {
         // =========================
 
         // apply multiplier to price
-        uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
+        uint256 price = oracle.getPrice().mulDivUp(_params.multiplier, MULTIPLIER_DENOM);
 
         // get payment amount
         paymentAmount = amount.mulWadUp(price);
@@ -190,7 +197,7 @@ contract LockedExercise is BaseExercise {
         // ================
 
         // get the lock duration using the chosen multiplier
-        uint256 lockDuration = getLockDurationForLpDiscount(multiplier);
+        uint256 lockDuration = getLockDurationForLpDiscount(_params.multiplier);
 
         // Create Sablier timelock
         // uint256 streamId = createTimelock(lpTokenAmount, lockDuration, pair, recipient);
