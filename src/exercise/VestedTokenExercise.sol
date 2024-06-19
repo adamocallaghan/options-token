@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.19;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
-import {SafeCast} from "oz/utils/math/SafeCast.sol";
+//import {SafeCast} from "oz/utils/math/SafeCast.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
@@ -25,7 +25,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
-    using SafeCast for uint256;
+    //using SafeCast for uint256;
 
     /// Errors
     error Exercise__RequestedAmountTooHigh();
@@ -78,8 +78,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
-        ISablierV2LockupLinear lockUpLinear_,
-        ISablierV2LockupDynamic lockUpDynamic_,
+        address lockUpLinear_,
+        address lockUpDynamic_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
@@ -113,7 +113,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
-        onlyOToken
+        onlyOToken 
         returns (uint256 paymentAmount, address, uint256 tokenId, uint256)
     {
         return _exercise(from, amount, recipient, params);
@@ -201,10 +201,10 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     function _createLinearStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 tokenId) { 
         uint256 balance = underlyingToken.balanceOf(address(this));
         if (amount > balance) {
-            createLinearStream(cliffDuration, totalDuration, balance.toUint128(), address(underlyingToken), to);
+            tokenId = createLinearStream(cliffDuration, totalDuration, balance, address(underlyingToken), to);
             remainingAmount = amount - balance;
         } else {
-            createLinearStream(cliffDuration, totalDuration, amount.toUint128(), address(underlyingToken), to);
+            tokenId = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
         }
         credit[to] += remainingAmount;
     }

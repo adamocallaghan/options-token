@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
 import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {SablierStreamCreator} from "../src/exercise/Sablier/SablierStreamCreator.sol";
-import {TestERC20} from "./mocks/TestERC20.sol";
+//import {TestERC20} from "./mocks/TestERC20.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 //import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
@@ -32,18 +32,18 @@ contract VestedTokenExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
-    uint56 constant ORACLE_SECS = 30 minutes;
-    uint56 constant ORACLE_AGO = 2 minutes;
+    //uint56 constant ORACLE_SECS = 30 minutes;
+    //uint56 constant ORACLE_AGO = 2 minutes;
     uint128 constant ORACLE_MIN_PRICE = 1e17;
-    uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
+    //uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
     uint256 constant ORACLE_INIT_TWAP_VALUE = 1e19;
     uint256 constant ORACLE_MIN_PRICE_DENOM = 10000;
-    uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
+    //uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address internal constant SABLIER_LINEAR_ADDRESS = address(0x3FE4333f62A75c2a85C8211c6AeFd1b9Bfde6e51); // <-- BSC/ETH --> 0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9
-    address internal constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // <-- BSC/ETH --> 0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9
+    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
 
     // fork vars
     uint256 bscFork;
@@ -51,7 +51,7 @@ contract VestedTokenExerciseTest is Test {
 
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
-    address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address - DAO Maker token
+    address UNDERLYING_TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address - DAO Maker token
     address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955; // the payment token address - BSC pegged USD
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109; // the thena router for swapping
     address THENA_FACTORY = 0xAFD89d21BdB66d00817d4153E055830B1c2B3970; // the factory for getting our LP token pair address
@@ -71,10 +71,11 @@ contract VestedTokenExerciseTest is Test {
     // vars for contracts we will deploy
     OptionsToken optionsToken;
     VestedTokenExercise exerciser;
-    SablierStreamCreator sablierCreator;
+    ISablierV2LockupLinear internal sablierLinear;
+    ISablierV2LockupDynamic internal sablierDynamic;
     ThenaOracle oracle;
-    TestERC20 paymentToken;
-    TestERC20 underlyingToken;    
+    //IERC20 paymentToken;
+    //IERC20 underlyingToken;    
 
     uint40 cliffDuration = 1 days;
     uint40 totalDuration = 30 days;
@@ -82,13 +83,16 @@ contract VestedTokenExerciseTest is Test {
   
     function setUp() public {
         // fork binance smart chain
-        bscFork = vm.createFork(BSC_RPC_URL);
-        vm.selectFork(bscFork);
+        bscFork = vm.createSelectFork(BSC_RPC_URL);
+        //vm.selectFork(bscFork);
 
-        // set up accounts
-        owner = makeAddr("owner");
-        tokenAdmin = makeAddr("tokenAdmin");
+        // set up accounts and fee recipients
+        owner = makeAddr("owner"); 
+        vm.deal(owner, 1 ether); 
+        tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
+        vm.deal(tokenAdmin, 1 ether);
         user = makeAddr("user");
+        vm.deal(user, 1 ether);
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -99,8 +103,8 @@ contract VestedTokenExerciseTest is Test {
         feeBPS_[1] = 9000; // 90%
 
         // deploy contracts
-        paymentToken = new TestERC20();
-        underlyingToken = new TestERC20();
+       // paymentToken = IERC20(PAYMENT_TOKEN_ADDRESS);
+       // underlyingToken =  IERC20(UNDERLYING_TOKEN_ADDRESS);
 
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, "");
@@ -108,23 +112,25 @@ contract VestedTokenExerciseTest is Test {
         optionsToken.initialize("XYZ Vested Option Token", "ovXYZ", tokenAdmin);
         optionsToken.transferOwnership(owner);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(paymentToken);
-        tokens[1] = address(underlyingToken);
+        // address[] memory tokens = new address[](2);
+        // tokens[0] = address(paymentToken);
+        // tokens[1] = address(underlyingToken);
 
         // set up the thena oracle parameters
-        _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 30 minutes, 1000);
+        _default = Params(IThenaPair(POOL_ADDRESS), UNDERLYING_TOKEN_ADDRESS, address(this), 30 minutes, 1000);
         // deploy oracle contract
         oracle = new ThenaOracle(_default.pair, _default.token, _default.owner, _default.secs, _default.minPrice);
 
-        //@todo need a mock oracle
+        sablierLinear = ISablierV2LockupLinear(SABLIER_LINEAR_ADDRESS);
+        sablierDynamic = ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS);
+
         exerciser = new VestedTokenExercise(
             optionsToken,
             owner,
-            ISablierV2LockupLinear(SABLIER_LINEAR_ADDRESS),
-            ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS),
+            SABLIER_LINEAR_ADDRESS,
+            SABLIER_DYNAMIC_ADDRESS,
             IERC20(PAYMENT_TOKEN_ADDRESS),
-            IERC20(TOKEN_ADDRESS),
+            IERC20(UNDERLYING_TOKEN_ADDRESS),
             oracle,
             PRICE_MULTIPLIER, // 50% discount
             cliffDuration,
@@ -133,18 +139,26 @@ contract VestedTokenExerciseTest is Test {
             feeBPS_
         );
 
-        underlyingToken.mint(address(exerciser), 1e20 ether); // fill the contract up with underlying tokens - tokens it will payout for oToken redemption
+
+        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption    
+        assertEq(IERC20(UNDERLYING_TOKEN_ADDRESS).balanceOf(address(exerciser)), 1e20 ether, "exerciser not funded");
 
         // add exerciser to the list of options
         vm.startPrank(owner);
         optionsToken.setExerciseContract(address(exerciser), true);
         vm.stopPrank();
 
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
+        vm.startPrank(user);
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all payment tokens
+       // IERC20(UNDERLYING_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
+        vm.stopPrank();
     }
 
     function test_setUp() public {
-        assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, 18);
+        assertEqDecimal(IERC20(UNDERLYING_TOKEN_ADDRESS).balanceOf(address(exerciser)), 1e20 ether, 18);
+        // assertEq(address(underlyingToken), UNDERLYING_TOKEN_ADDRESS);
+        // assertEq(address(paymentToken), PAYMENT_TOKEN_ADDRESS);
+        // assertEq(address(optionsToken.owner()), owner);
     }
 
     function test_getPrice() public {
@@ -168,6 +182,67 @@ contract VestedTokenExerciseTest is Test {
         // verify balance
         assertEqDecimal(optionsToken.balanceOf(address(this)), amount, 18);
     }
+
+    // function test_createStream() public {
+    //     deal(UNDERLYING_TOKEN_ADDRESS, address(sablierCreator), 1e20);
+
+    //     uint256 balance = underlyingToken.balanceOf(address(sablierCreator));
+    //     console.log("balance", balance);
+
+    //     address recipient = makeAddr("recipient");
+    //     uint128 amount = 10000;
+    //     uint40 cliffDuration_ = 1 days;
+    //     uint40 totalDuration_ = 30 days;
+    //     uint256 streamId = sablierCreator.createStream(cliffDuration_, totalDuration_, amount, address(underlyingToken), recipient);
+        
+    //     assertEq(streamId, 1, "stream not created");
+    // }
+
+
+    function test_exerciseAndCreateSablierLinearStream() public {
+        //vm.assume(recipient != address(0));
+        //amount = bound(amount, 100, MAX_SUPPLY);
+
+        address recipient = makeAddr("recipient");
+        uint256 amount = 1e15;
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(user, amount);
+        
+        //deal(address(optionsToken), address(this), amount);
+
+        // took this from the contract
+        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
+        console.log("price", price);
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        console.log("expectedPaymentAmount", expectedPaymentAmount);
+        
+        // give payment tokens
+        deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
+        
+        uint256 expectedStreamId = sablierLinear.nextStreamId();
+
+        vm.prank(user);
+        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+        //(uint256 paymentAmount,,uint256 streamId,) = exerciser.exercise(user, amount, recipient, ""); // attempt to call directly to vestedExercise
+        
+
+
+        // verify options tokens were transferred
+        assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
+        assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
+        assertEq(streamId, expectedStreamId, "stream id not created");
+
+        // verify payment tokens were transferred
+        // assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
+        // uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
+        // uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
+        // assertEqDecimal(paymentToken.balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
+        // assertEqDecimal(paymentToken.balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
+        // assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+    }
+    
 
 
 }

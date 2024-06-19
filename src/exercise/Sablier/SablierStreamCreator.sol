@@ -2,6 +2,8 @@
 pragma solidity >=0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeCast} from "oz/utils/math/SafeCast.sol";
+
 import {ud60x18} from "@prb/math/src/UD60x18.sol";
 import {ud2x18} from "@prb/math/src/UD2x18.sol";
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
@@ -9,6 +11,7 @@ import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 abstract contract SablierStreamCreator {
+    using SafeCast for uint256;
     //@note  maybe we need to move this to the exercise contract??
     ISablierV2LockupLinear public immutable LOCKUP_LINEAR; 
     //Mainnet Addr ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
@@ -16,31 +19,29 @@ abstract contract SablierStreamCreator {
     ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC; 
     //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
 
-    constructor(ISablierV2LockupLinear lockupLinear_, ISablierV2LockupDynamic lockupDynamic_) {
-        LOCKUP_LINEAR = lockupLinear_;
-        LOCKUP_DYNAMIC = lockupDynamic_;
+    constructor(address lockupLinear_, address lockupDynamic_) {
+        LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
+        LOCKUP_DYNAMIC = ISablierV2LockupDynamic(lockupDynamic_);
     }
 
     /////////////////////////////////
     /// Stream Creation Functions ///
     /////////////////////////////////
 
-    function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint128 amount_, address token_, address recipient_)
+    function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint256 amount_, address token_, address recipient_)
         internal
         virtual
         returns (uint256 streamId)
     {
-        // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
-        IERC20(token_).transferFrom(msg.sender, address(this), amount_);
 
         // Approve the Sablier contract to pull the tokens from this contract
         IERC20(token_).approve(address(LOCKUP_LINEAR), amount_);
 
         LockupLinear.CreateWithDurations memory params;
         // Declare the function parameters
-        params.sender = msg.sender; // The sender will be able to cancel the stream
+        params.sender = address(this); // The sender will be able to cancel the stream
         params.recipient = recipient_; // The recipient of the streamed assets
-        params.totalAmount = amount_; // Total amount is the amount inclusive of all fees
+        params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
         params.asset = IERC20(token_); // The streaming asset
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not @note do we want this?
