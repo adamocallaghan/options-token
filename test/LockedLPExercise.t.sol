@@ -29,13 +29,8 @@ contract LockedLPExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
-    // uint56 constant ORACLE_SECS = 30 minutes;
-    // uint56 constant ORACLE_AGO = 2 minutes;
-    // uint128 constant ORACLE_MIN_PRICE = 1e17;
-    // uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
     uint256 constant ORACLE_INIT_TWAP_VALUE = 1e19;
     uint256 constant ORACLE_MIN_PRICE_DENOM = 10000;
-    // uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
 
     // fork vars
     uint256 bscFork;
