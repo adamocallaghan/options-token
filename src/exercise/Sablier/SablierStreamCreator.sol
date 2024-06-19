@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ud60x18} from "@prb/math/src/UD60x18.sol";
@@ -52,7 +52,7 @@ abstract contract SablierStreamCreator {
             cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time @note I think we want to keep this a constant
             total: totalDuration_ // Setting a total duration of the stream
         });
-        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter for charging a fee @note we take fees in other places so no need for this I believe
+        // params.broker = Broker(address(0), ud60x18(0)); // Optional parameter for charging a fee @note we take fees in other places so no need for this I believe
 
         // Create the LockupLinear stream using a function that sets the start time to `block.timestamp`
         streamId = LOCKUP_LINEAR.createWithDurations(params);

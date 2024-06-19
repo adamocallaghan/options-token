@@ -15,7 +15,7 @@ import {IRouter} from "../interfaces/IRouter.sol";
 import {IPairFactory} from "../interfaces/IPairFactory.sol";
 import {IPair} from "../interfaces/IPair.sol";
 
-// import {SablierStreamCreator} from "./Sablier/SablierStreamCreator.sol";
+import {SablierStreamCreator} from "./Sablier/SablierStreamCreator.sol";
 
 struct LockedExerciseParams {
     uint256 maxPaymentAmount;
@@ -30,7 +30,7 @@ struct LockedExerciseParams {
 /// price. Those underlying token are paired 50:50 with additional payment tokens
 /// to create an LP which is timelocked for release to the user
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract LockedExercise is BaseExercise {
+contract LockedExercise is BaseExercise, SablierStreamCreator {
     /// Library usage
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
@@ -195,7 +195,8 @@ contract LockedExercise is BaseExercise {
         address lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
 
         // Create Sablier timelock (the lock is really a '1 second' cliff)
-        uint256 streamId = createLinearStream(lockDuration, (lockDuration + 1), amount.toUint128(), address(lpTokenAddress), from, recipient);
+        uint256 streamId =
+            createLinearStream(uint40(lockDuration), uint40(lockDuration + 1), uint128(amount), address(lpTokenAddress), from, recipient);
         // uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
