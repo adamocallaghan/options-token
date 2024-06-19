@@ -109,7 +109,7 @@ contract LockedLPExerciseTest is Test {
         optionsToken.setExerciseContract(address(exerciser), true);
         vm.stopPrank();
 
-        deal(PAYMENT_TOKEN_ADDRESS, address(proxy), 1e6 * 1e18, true); // give the proxy payment tokens
+        // deal(PAYMENT_TOKEN_ADDRESS, address(proxy), 1e6 * 1e18, true); // give the proxy payment tokens
         deal(TOKEN_ADDRESS, address(exerciser), 1e6 * 1e18, true); // fill the contract up with underlying tokens
 
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend max payment tokens
@@ -117,11 +117,6 @@ contract LockedLPExerciseTest is Test {
         vm.startPrank(address(exerciser));
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
-        vm.stopPrank();
-
-        vm.startPrank(address(proxy));
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max);
-        // IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         vm.stopPrank();
     }
 

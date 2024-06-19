@@ -9,8 +9,8 @@ import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 abstract contract SablierStreamCreator {
-    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = 0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2; // Linear on BSC
-    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC = 0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa; // Dynamic on BSC
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = ISablierV2LockupLinear(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // Linear on BSC
+    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC = ISablierV2LockupDynamic(0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa); // Dynamic on BSC
 
     // @note hardcoding the addresses above for now, will use constructor params eventually
     // constructor(ISablierV2LockupLinear lockupLinear_, ISablierV2LockupDynamic lockupDynamic_) {
@@ -22,25 +22,31 @@ abstract contract SablierStreamCreator {
     /// Stream Creation Functions ///
     /////////////////////////////////
 
-    function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint128 amount_, address token_, address recipient_)
+    function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint128 amount_, address token_, address from_, address recipient_)
         internal
         virtual
         returns (uint256 streamId)
     {
-        // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
-        IERC20(token_).transferFrom(msg.sender, address(this), amount_);
+        // @note I'm commenting out the following transfer as this will already be done in our _exercise function.
+        // In the vesting implementation the (underlying) tokens to stream are owned by this contract, and in the
+        // locked LP implementation it's the LP token (also owned by this contract) that we're streaming.
+        // If this will be a mixin for general use then the usage will almost always be that the exercise contract
+        // owns the tokens to be streamed/cliffed/vested/locked
+
+        // Transfers the tokens to be streamed to this contract
+        // IERC20(token_).transferFrom(msg.sender, address(this), amount_);
 
         // Approve the Sablier contract to pull the tokens from this contract
         IERC20(token_).approve(address(LOCKUP_LINEAR), amount_);
 
         LockupLinear.CreateWithDurations memory params;
         // Declare the function parameters
-        params.sender = msg.sender; // The sender will be able to cancel the stream
+        params.sender = from_; // @changed from msg.sender to from_ (msg.sender is the proxy here) new 'from_' param passed into function for this
         params.recipient = recipient_; // The recipient of the streamed assets
         params.totalAmount = amount_; // Total amount is the amount inclusive of all fees
         params.asset = IERC20(token_); // The streaming asset
         params.cancelable = true; // Whether the stream will be cancelable or not
-        params.transferable = true; // Whether the stream will be transferable or not @note do we want this?
+        params.transferable = true; // Whether the stream will be transferable or not
         params.durations = LockupLinear.Durations({
             //@note just use this as a "locked" stream set the cliff duration to the time you wish to release the tokens and the totalDuration to clifftime + 1 seconds
             cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time @note I think we want to keep this a constant
