@@ -9,7 +9,6 @@ import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {LockedExerciseParams, LockedExercise, BaseExercise} from "../src/exercise/LockedLPExercise.sol";
-import {TestERC20} from "./mocks/TestERC20.sol";
 
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
@@ -35,12 +34,12 @@ contract LockedLPExerciseTest is Test {
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-    uint32 FORK_BLOCK = 39748140;
+    uint32 FORK_BLOCK = 39748140; // free RPC won't cut it, need one with archive node to roll to specific block
 
-    // thena addresses
+    // thena addresses & token addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
-    address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address
-    address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955; // the payment token address
+    address TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address - $DAO
+    address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955; // the payment token address - $BSC-USD
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109; // the thena router for swapping
     address THENA_FACTORY = 0xAFD89d21BdB66d00817d4153E055830B1c2B3970; // the factory for getting our LP token pair address
 
