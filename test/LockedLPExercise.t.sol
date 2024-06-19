@@ -95,9 +95,9 @@ contract LockedLPExerciseTest is Test {
         optionsToken.initialize("XYZ Call Option Token", "oXYZ", tokenAdmin);
         optionsToken.transferOwnership(owner);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(paymentToken);
-        tokens[1] = address(underlyingToken);
+        // address[] memory tokens = new address[](2);
+        // tokens[0] = address(paymentToken);
+        // tokens[1] = address(underlyingToken);
 
         // set up the thena oracle parameters
         _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 30 minutes, 1000);
@@ -109,20 +109,27 @@ contract LockedLPExerciseTest is Test {
             optionsToken, owner, IERC20(PAYMENT_TOKEN_ADDRESS), IERC20(TOKEN_ADDRESS), oracle, THENA_ROUTER, THENA_FACTORY, feeRecipients_, feeBPS_
         );
 
-        underlyingToken.mint(address(exerciser), 1e20 ether); // fill the contract up with underlying tokens
-
         // add exerciser to the list of options
         vm.startPrank(owner);
         optionsToken.setExerciseContract(address(exerciser), true);
         vm.stopPrank();
 
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
+        deal(PAYMENT_TOKEN_ADDRESS, address(proxy), 1e6 * 1e18, true); // give the proxy payment tokens
+        deal(TOKEN_ADDRESS, address(exerciser), 1e6 * 1e18, true); // fill the contract up with underlying tokens
 
-        // give the user some oTokens and payment tokens
-        // vm.startPrank(owner);
-        // optionsToken.mint(user, 15000);
-        // paymentToken.mint(user, 100e18);
-        // vm.stopPrank();
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend max payment tokens
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max); // router contract can spend max payment tokens
+
+        vm.startPrank(address(exerciser));
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max);
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
+        IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(address(proxy));
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max);
+        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
+        vm.stopPrank();
     }
 
     function test_getPrice() public {
@@ -141,7 +148,6 @@ contract LockedLPExerciseTest is Test {
 
         // mint payment tokens
         uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
-        // paymentToken.mint(address(this), expectedPaymentAmount);
         deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
 
         // exercise options tokens

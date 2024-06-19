@@ -173,7 +173,7 @@ contract LockedExercise is BaseExercise {
         // tokens to pair up with the underlying token to form an LP pair. Is there a way to collect
         // all the paymentTokens in a single transfer and then do the fee distribution & LP pair side
         // separately??
-        distributeFeesFrom(paymentAmount, paymentToken, msg.sender); // transfer payment tokens from user to the set receivers
+        distributeFeesFrom(paymentAmount, paymentToken, from); // transfer payment tokens from user to the set receivers
 
         // ==================
         //  === CREATE LP ===
@@ -185,7 +185,8 @@ contract LockedExercise is BaseExercise {
 
         // Approvals for router
         underlyingToken.safeTransfer(address(router), amount);
-        paymentToken.safeTransferFrom(msg.sender, address(router), paymentAmountToAddLiquidity);
+        // paymentToken.safeTransferFrom(msg.sender, address(router), paymentAmountToAddLiquidity);
+        paymentToken.safeTransferFrom(msg.sender, address(this), paymentAmountToAddLiquidity);
 
         // Create LP
         (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
