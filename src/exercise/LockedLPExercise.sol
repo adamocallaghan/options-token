@@ -5,6 +5,7 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {SafeCast} from "oz/utils/math/SafeCast.sol";
 // import {SignedMath} from "../libraries/SignedMath.sol"; *** CAUSING ERRORS ***
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
@@ -195,8 +196,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         address lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
 
         // Create Sablier timelock (the lock is really a '1 second' cliff)
-        uint256 streamId =
-            createLinearStream(uint40(lockDuration), uint40(lockDuration + 1), uint128(amount), address(lpTokenAddress), from, recipient);
+        uint256 streamId = createLinearStream(uint40(lockDuration), uint40(lockDuration + 100), lpTokenAmount, address(lpTokenAddress), recipient);
         // uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);

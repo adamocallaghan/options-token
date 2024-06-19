@@ -109,7 +109,6 @@ contract LockedLPExerciseTest is Test {
         optionsToken.setExerciseContract(address(exerciser), true);
         vm.stopPrank();
 
-        // deal(PAYMENT_TOKEN_ADDRESS, address(proxy), 1e6 * 1e18, true); // give the proxy payment tokens
         deal(TOKEN_ADDRESS, address(exerciser), 1e6 * 1e18, true); // fill the contract up with underlying tokens
 
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend max payment tokens
@@ -128,7 +127,7 @@ contract LockedLPExerciseTest is Test {
     }
 
     function test_exerciseWithMultiplier() public {
-        uint256 amount = 15000;
+        uint256 amount = 100;
         address recipient = makeAddr("recipient");
         // mint options tokens
         vm.prank(tokenAdmin);
