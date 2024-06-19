@@ -29,17 +29,18 @@ contract LockedLPExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
-    uint56 constant ORACLE_SECS = 30 minutes;
-    uint56 constant ORACLE_AGO = 2 minutes;
-    uint128 constant ORACLE_MIN_PRICE = 1e17;
-    uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
+    // uint56 constant ORACLE_SECS = 30 minutes;
+    // uint56 constant ORACLE_AGO = 2 minutes;
+    // uint128 constant ORACLE_MIN_PRICE = 1e17;
+    // uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
     uint256 constant ORACLE_INIT_TWAP_VALUE = 1e19;
     uint256 constant ORACLE_MIN_PRICE_DENOM = 10000;
-    uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
+    // uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
 
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
+    uint32 FORK_BLOCK = 39748140;
 
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
@@ -51,7 +52,6 @@ contract LockedLPExerciseTest is Test {
     // EOA vars
     address owner;
     address tokenAdmin;
-    address user;
 
     // fee vars
     address[] feeRecipients_;
@@ -64,18 +64,23 @@ contract LockedLPExerciseTest is Test {
     OptionsToken optionsToken;
     LockedExercise exerciser;
     ThenaOracle oracle;
-    TestERC20 paymentToken;
-    TestERC20 underlyingToken;
+
+    // @note we are not deploying TestERC20s in these tests, we are using other deployed tokens on BSC mainnet
+    // TOKEN_ADDRESS = $DAO, PAYMENT_TOKEN_ADDRESS = $BSC-USD (taken from ThenaOracle.t.sol)
+    // This is because we need an existing liquidity pool to enter into for the locked LP exercise (on our fork)
+    // So for these tests the oToken is treated as if it's an option token for the exisitng "TOKEN_ADDRESS" contract
+    // we can look at creating a pool and adding liquidity for new tokens once the general flow of the exercise
+    // is working correctly
 
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createFork(BSC_RPC_URL);
+        // bscFork = vm.createSelectFork(BSC_RPC_URL, FORK_BLOCK);
         vm.selectFork(bscFork);
 
         // set up accounts
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin");
-        user = makeAddr("user");
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -84,10 +89,6 @@ contract LockedLPExerciseTest is Test {
         feeBPS_ = new uint256[](2);
         feeBPS_[0] = 1000; // 10%
         feeBPS_[1] = 9000; // 90%
-
-        // deploy contracts
-        paymentToken = new TestERC20();
-        underlyingToken = new TestERC20();
 
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, "");
@@ -118,17 +119,15 @@ contract LockedLPExerciseTest is Test {
         deal(TOKEN_ADDRESS, address(exerciser), 1e6 * 1e18, true); // fill the contract up with underlying tokens
 
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend max payment tokens
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max); // router contract can spend max payment tokens
 
         vm.startPrank(address(exerciser));
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max);
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(address(proxy));
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max);
-        IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
+        // IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         vm.stopPrank();
     }
 

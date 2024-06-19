@@ -89,8 +89,8 @@ contract LockedExercise is BaseExercise {
     uint256 public maxMultiplier = 3000; // 70% discount
     uint256 public minMultiplier = 8000; // 20% discount
 
-    uint256 public minLpLockDuration = 7 * 86400;
-    uint256 public maxLpLockDuration = 52 * 7 * 86400;
+    uint256 public minLpLockDuration = 7 * 86400; // one week
+    uint256 public maxLpLockDuration = 52 * 7 * 86400; // one year
 
     constructor(
         OptionsToken oToken_,
@@ -116,13 +116,6 @@ contract LockedExercise is BaseExercise {
     }
 
     // /// External functions
-    // function exercise(address from, uint256 amount, address recipient, bytes memory params)
-    //     external
-    //     override
-    //     onlyOToken
-    //     returns (uint256 paymentAmount, address, uint256, uint256)
-    // {}
-
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
@@ -167,12 +160,12 @@ contract LockedExercise is BaseExercise {
         //  === PROTOCOL FEES ===
         // ======================
 
-        // @note distributeFeesFrom requires the user to sign a transaction, or multiple
-        // transactions, in order to send the payment token to an array of feeRecipients; then later
-        // in this function the user is required to sign another transaction to send *more* payment
-        // tokens to pair up with the underlying token to form an LP pair. Is there a way to collect
-        // all the paymentTokens in a single transfer and then do the fee distribution & LP pair side
-        // separately??
+        // @note distributeFeesFrom requires the user to sign a transaction in order to send the
+        // payment token to an array of feeRecipients; then later in this function the user is required
+        // to sign another transaction to send *more* payment tokens to pair up with the underlying
+        // token to form an LP pair. Is there a way to collect all the paymentTokens in a single
+        // transfer and then do the fee distribution & LP pair parts separately within the contract?
+
         distributeFeesFrom(paymentAmount, paymentToken, from); // transfer payment tokens from user to the set receivers
 
         // ==================
@@ -183,9 +176,7 @@ contract LockedExercise is BaseExercise {
         (uint256 underlyingReserve, uint256 paymentReserve) = IRouter(router).getReserves(address(underlyingToken), address(paymentToken), false);
         uint256 paymentAmountToAddLiquidity = (amount * paymentReserve) / underlyingReserve;
 
-        // Approvals for router
-        underlyingToken.safeTransfer(address(router), amount);
-        // paymentToken.safeTransferFrom(msg.sender, address(router), paymentAmountToAddLiquidity);
+        // get payment token from user to pair with underlying token in lp
         paymentToken.safeTransferFrom(msg.sender, address(this), paymentAmountToAddLiquidity);
 
         // Create LP
@@ -200,9 +191,12 @@ contract LockedExercise is BaseExercise {
         // get the lock duration using the chosen multiplier
         uint256 lockDuration = getLockDurationForLpDiscount(_params.multiplier);
 
-        // Create Sablier timelock
-        // uint256 streamId = createTimelock(lpTokenAmount, lockDuration, pair, recipient);
-        uint256 streamId = 123;
+        // get lp token address
+        address lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
+
+        // Create Sablier timelock (the lock is really a '1 second' cliff)
+        // uint256 streamId = createLinearStream(lockDuration, (lockDuration + 1), amount.toUint128(), address(lpTokenAddress), to);
+        uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
     }
@@ -247,7 +241,7 @@ contract LockedExercise is BaseExercise {
     function getLockDurationForLpDiscount(uint256 multiplier_) public view returns (uint256 lockDuration) {
         (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
         // lockDuration = SignedMath.abs(slope * int256(multiplier_) + intercept);
-        lockDuration = 1 weeks;
+        lockDuration = 1 weeks; // @note dummy lockDuration until the rest of the contract flow is working correctly
     }
 
     function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
