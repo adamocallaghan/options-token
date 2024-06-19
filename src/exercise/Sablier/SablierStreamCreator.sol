@@ -9,17 +9,14 @@ import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 abstract contract SablierStreamCreator {
-    //@note  maybe we need to move this to the exercise contract??
-    ISablierV2LockupLinear public immutable LOCKUP_LINEAR;
-    //Mainnet Addr ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = 0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2; // Linear on BSC
+    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC = 0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa; // Dynamic on BSC
 
-    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC;
-    //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
-
-    constructor(ISablierV2LockupLinear lockupLinear_, ISablierV2LockupDynamic lockupDynamic_) {
-        LOCKUP_LINEAR = lockupLinear_;
-        LOCKUP_DYNAMIC = lockupDynamic_;
-    }
+    // @note hardcoding the addresses above for now, will use constructor params eventually
+    // constructor(ISablierV2LockupLinear lockupLinear_, ISablierV2LockupDynamic lockupDynamic_) {
+    //     LOCKUP_LINEAR = lockupLinear_;
+    //     LOCKUP_DYNAMIC = lockupDynamic_;
+    // }
 
     /////////////////////////////////
     /// Stream Creation Functions ///
