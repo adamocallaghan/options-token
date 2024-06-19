@@ -195,8 +195,8 @@ contract LockedExercise is BaseExercise {
         address lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
 
         // Create Sablier timelock (the lock is really a '1 second' cliff)
-        // uint256 streamId = createLinearStream(lockDuration, (lockDuration + 1), amount.toUint128(), address(lpTokenAddress), from, recipient);
-        uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
+        uint256 streamId = createLinearStream(lockDuration, (lockDuration + 1), amount.toUint128(), address(lpTokenAddress), from, recipient);
+        // uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
     }
