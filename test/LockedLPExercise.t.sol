@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
+import {SignedMath} from "oz/utils/math/SignedMath.sol";
 
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {LockedExerciseParams, LockedExercise, BaseExercise} from "../src/exercise/LockedLPExercise.sol";
@@ -13,8 +14,9 @@ import {LockedExerciseParams, LockedExercise, BaseExercise} from "../src/exercis
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
-import {IPair} from "../src/interfaces/IPair.sol"; // IPair has transferFrom for moving LP tokens to Sablier
+import {IPair} from "../src/interfaces/IPair.sol";
 import {IPairFactory} from "../src/interfaces/IPairFactory.sol";
+import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 
 struct Params {
     IThenaPair pair;
@@ -30,11 +32,12 @@ contract LockedLPExerciseTest is Test {
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
     uint256 constant ORACLE_INIT_TWAP_VALUE = 1e19;
     uint256 constant ORACLE_MIN_PRICE_DENOM = 10000;
+    uint256 constant MAX_SUPPLY = 1e27;
 
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-    uint32 FORK_BLOCK = 39748140; // free RPC won't cut it, need one with archive node to roll to specific block
+    uint32 FORK_BLOCK = 39748140;
 
     // thena addresses & token addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
@@ -42,6 +45,9 @@ contract LockedLPExerciseTest is Test {
     address PAYMENT_TOKEN_ADDRESS = 0x55d398326f99059fF775485246999027B3197955; // the payment token address - $BSC-USD
     address THENA_ROUTER = 0xd4ae6eCA985340Dd434D38F470aCCce4DC78D109; // the thena router for swapping
     address THENA_FACTORY = 0xAFD89d21BdB66d00817d4153E055830B1c2B3970; // the factory for getting our LP token pair address
+
+    // Sablier
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = ISablierV2LockupLinear(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // Linear on BSC
 
     // EOA vars
     address owner;
@@ -58,6 +64,12 @@ contract LockedLPExerciseTest is Test {
     OptionsToken optionsToken;
     LockedExercise exerciser;
     ThenaOracle oracle;
+
+    uint256 public maxMultiplier = 3000; // 70% discount
+    uint256 public minMultiplier = 8000; // 20% discount
+
+    uint256 public minLpLockDuration = 7 * 86400; // one week
+    uint256 public maxLpLockDuration = 52 * 7 * 86400; // one year
 
     // @note we are not deploying TestERC20s in these tests, we are using other deployed tokens on BSC mainnet
     // TOKEN_ADDRESS = $DAO, PAYMENT_TOKEN_ADDRESS = $BSC-USD (taken from ThenaOracle.t.sol)
@@ -126,9 +138,15 @@ contract LockedLPExerciseTest is Test {
         assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too large"); // 1%
     }
 
-    function test_exerciseWithMultiplier() public {
-        uint256 amount = 100;
+    function exerciseWithMultiplier(uint256 amount, uint256 multiplier)
+        public
+        returns (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId)
+    {
+        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
+        multiplier = bound(multiplier, maxMultiplier, minMultiplier); // @note maxMult and minMult are reversed in bound here
+
         address recipient = makeAddr("recipient");
+
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(address(this), amount);
@@ -137,10 +155,44 @@ contract LockedLPExerciseTest is Test {
         uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
         deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
 
-        // exercise options tokens
+        // exercise options tokens, create LP, and lock in Sablier
         LockedExerciseParams memory params =
-            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: 5000});
-        (uint256 paymentAmount,,,) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: multiplier});
+
+        (paymentAmount, lpTokenAddress, lockDuration, streamId) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
+
+    function test_returnedLpTokenAddressIsCorrect(uint256 amount, uint256 multiplier) public {
+        // returned token address
+        (, address lpTokenAddressReturned,,) = exerciseWithMultiplier(amount, multiplier);
+
+        // get lp token address from token addresses
+        address lpTokenAddressFromPair = IPairFactory(THENA_FACTORY).getPair(TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false);
+
+        assertEq(lpTokenAddressFromPair, lpTokenAddressReturned);
+    }
+
+    function test_returnedLpLockDurationIsCorrect(uint256 amount, uint256 multiplier) public {
+        multiplier = bound(multiplier, maxMultiplier, minMultiplier); // @note maxMult and minMult are reversed in bound here
+        // returned token address
+        (,, uint256 lockDurationReturned,) = exerciseWithMultiplier(amount, multiplier);
+
+        // calculate lock duration
+        int256 slope = int256(maxLpLockDuration - minLpLockDuration) / (int256(maxMultiplier) - int256(minMultiplier));
+        int256 intercept = int256(minLpLockDuration) - (slope * int256(minMultiplier));
+        uint256 lockDurationCalculated = SignedMath.abs(slope * int256(multiplier) + intercept);
+
+        assertEq(lockDurationCalculated, lockDurationReturned);
+    }
+
+    function test_returnedStreamIdIsCorrect(uint256 amount, uint256 multiplier) public {
+        // get the next streamId from Sablier
+        uint256 nextStreamId = LOCKUP_LINEAR.nextStreamId();
+
+        // returned token address
+        (,,, uint256 streamIdReturned) = exerciseWithMultiplier(amount, multiplier);
+
+        assertEq(nextStreamId, streamIdReturned);
     }
 
     function getSpotPrice(IThenaPair pair, address token) internal view returns (uint256 price) {

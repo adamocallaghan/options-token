@@ -6,7 +6,7 @@ import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {SafeCast} from "oz/utils/math/SafeCast.sol";
-// import {SignedMath} from "../libraries/SignedMath.sol"; *** CAUSING ERRORS ***
+import {SignedMath} from "oz/utils/math/SignedMath.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {OptionsToken} from "../OptionsToken.sol";
@@ -121,7 +121,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         external
         override
         onlyOToken
-        returns (uint256 paymentAmount, address, uint256, uint256)
+        returns (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId)
     {
         return _exercise(from, amount, recipient, params);
     }
@@ -130,7 +130,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
-        returns (uint256 paymentAmount, address, uint256, uint256)
+        returns (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId)
     {
         // ===============
         //  === CHECKS ===
@@ -190,13 +190,13 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         // ================
 
         // get the lock duration using the chosen multiplier
-        uint256 lockDuration = getLockDurationForLpDiscount(_params.multiplier);
+        lockDuration = getLockDurationForLpDiscount(_params.multiplier);
 
         // get lp token address
-        address lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
+        lpTokenAddress = IPairFactory(factory).getPair(address(underlyingToken), address(paymentToken), false);
 
         // Create Sablier timelock (the lock is really a '1 second' cliff)
-        uint256 streamId = createLinearStream(uint40(lockDuration), uint40(lockDuration + 100), lpTokenAmount, address(lpTokenAddress), recipient);
+        streamId = createLinearStream(uint40(lockDuration), uint40(lockDuration + 100), lpTokenAmount, address(lpTokenAddress), recipient);
         // uint256 streamId = 123; // @note dummy streamId until the rest of the contract flow is working correctly
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
@@ -239,10 +239,10 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
     /// View functions
 
-    function getLockDurationForLpDiscount(uint256 multiplier_) public view returns (uint256 lockDuration) {
+    function getLockDurationForLpDiscount(uint256 _discount) public view returns (uint256 duration) {
         (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
-        // lockDuration = SignedMath.abs(slope * int256(multiplier_) + intercept);
-        lockDuration = 1 weeks; // @note dummy lockDuration until the rest of the contract flow is working correctly
+        duration = SignedMath.abs(slope * int256(_discount) + intercept);
+        // lockDuration = 1 weeks;
     }
 
     function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
