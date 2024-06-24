@@ -91,27 +91,5 @@ abstract contract SablierStreamCreator {
         // Create the LockupDynamic stream
         streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
     }
-
-    ///////////////////////////////////
-    /// Stream Management Functions ///
-    ///////////////////////////////////
-    
-    //@todo access controls
-    function cancelLinearStream(uint256 streamId) internal virtual {
-        LOCKUP_LINEAR.cancel(streamId);
-    }
-
-    function cancelMultipleLinearStreams(uint256[] calldata streamIds) internal virtual {
-        LOCKUP_LINEAR.cancelMultiple(streamIds);
-    }
-
-    function withdrawLinerStream(uint256 streamId, address to, uint128 amount) internal virtual {
-        LOCKUP_LINEAR.withdraw(streamId, to, amount);
-    }
-
-    function withdrawMultipleLinearStreams(uint256[] calldata streamIds, address to, uint128[] calldata amounts) internal virtual {
-        LOCKUP_LINEAR.withdrawMultiple(streamIds, to, amounts);
-    }
-
     
 }

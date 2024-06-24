@@ -6,8 +6,6 @@ import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 //import {SafeCast} from "oz/utils/math/SafeCast.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
-import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
-import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
@@ -125,13 +123,9 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         uint256 amount = credit[msg.sender];
         if (amount == 0) return;
         credit[msg.sender] = 0;
-        underlyingToken.safeTransfer(to, amount);
+        _createLinearStream(to, amount);
     }
 
-    /// @notice allows the owener of the stream or an approved address to withdraw from the stream. The stream sender can call this function only if the to address is the recipient of the stream.
-    function withdrawFromLinearStream(uint256 streamId, address to, uint128 amount) external {
-        withdrawLinerStream(streamId, to, amount);
-    }
 
     ///////////////////////
     /// Owner functions ///
@@ -166,11 +160,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetMultiplier(multiplier_);
     }
 
-    /// @notice Allows the owner/sender of the stream to cancel the stream
-    function cancelLinerStream(uint256 streamId) external onlyOwner {
-        cancelLinearStream(streamId);
-    }
-
 
     //////////////////////////
     /// Internal functions ///
@@ -182,9 +171,11 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     {
 
         // apply multiplier to price
-        uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
+       // uint256 price = oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM);
 
-        paymentAmount = amount.mulWadUp(price);
+        paymentAmount = getPaymentAmount(amount);
+        
+        //amount.mulWadUp(price);
         // @todo figure out max payment amount - do we need this?
         // if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
 
@@ -215,20 +206,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
     /// @param amount The amount of options tokens to exercise
-    function getPaymentAmount(uint256 amount) external view returns (uint256 paymentAmount) {
+    function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
-
-    //@note probaly want this function - Sablier shoudl have a function that achieves this.
-    /// @notice Calculates the amount of tokens released for the given account.
-    /// @param account_ The account to calculate the tokens released for
-    // function calculateTokensReleased(address account_) public view returns (uint256) {
-    //     VestedReleaseParams memory params = userVests[account_];
-    //     if (block.timestamp < params.startTime) return 0;
-    //     if (block.timestamp >= params.endTime) return params.totalAmount;
-    //     uint256 timePassed = block.timestamp - params.startTime;
-    //     uint256 totalTime = params.endTime - params.startTime;
-    //     return params.totalAmount.mulDiv(timePassed, totalTime);
-    // }
 
 }
