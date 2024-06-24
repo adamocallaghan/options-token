@@ -125,6 +125,7 @@ contract LockedLPExerciseTest is Test {
 
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend max payment tokens
 
+        // router approvals to transfer tokens for lp
         vm.startPrank(address(exerciser));
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
@@ -177,7 +178,7 @@ contract LockedLPExerciseTest is Test {
         // returned token address
         (,, uint256 lockDurationReturned,) = exerciseWithMultiplier(amount, multiplier);
 
-        // calculate lock duration
+        // calculate lock duration @todo move to own function
         int256 slope = int256(maxLpLockDuration - minLpLockDuration) / (int256(maxMultiplier) - int256(minMultiplier));
         int256 intercept = int256(minLpLockDuration) - (slope * int256(minMultiplier));
         uint256 lockDurationCalculated = SignedMath.abs(slope * int256(multiplier) + intercept);

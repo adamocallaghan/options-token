@@ -43,7 +43,6 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidOracle();
 
     /// Events
-    event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetRouter(address indexed newRouter);
     event SetPair(IERC20 indexed paymentToken, IERC20 indexed underlyingToken, address indexed pair);
@@ -111,9 +110,6 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         _setOracle(oracle_);
         _setRouter(router_);
         _setPair(paymentToken_, underlyingToken_);
-
-        emit SetOracle(oracle_);
-        emit SetRouter(router_);
     }
 
     // /// External functions
@@ -160,12 +156,6 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         // ======================
         //  === PROTOCOL FEES ===
         // ======================
-
-        // @note distributeFeesFrom requires the user to sign a transaction in order to send the
-        // payment token to an array of feeRecipients; then later in this function the user is required
-        // to sign another transaction to send *more* payment tokens to pair up with the underlying
-        // token to form an LP pair. Is there a way to collect all the paymentTokens in a single
-        // transfer and then do the fee distribution & LP pair parts separately within the contract?
 
         distributeFeesFrom(paymentAmount, paymentToken, from); // transfer payment tokens from user to the set receivers
 
