@@ -62,8 +62,6 @@ abstract contract SablierStreamCreator {
         virtual 
         returns (uint256 streamId)
     {
-        // Transfers the tokens to be streamed to this contract @note maybe this needs to go somewhere else
-        IERC20(token_).transferFrom(msg.sender, address(this), totalAmount_);
 
         // Approve the Sablier contract to pull the tokens from this contract
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), totalAmount_);
@@ -71,7 +69,7 @@ abstract contract SablierStreamCreator {
         LockupDynamic.CreateWithMilestones memory params;
 
         // Declare the function parameters
-        params.sender = msg.sender; // The sender will be able to cancel the stream
+        params.sender = address(this); // The sender will be able to cancel the stream
         params.startTime = uint40(block.timestamp + 100 seconds);
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not
@@ -91,5 +89,57 @@ abstract contract SablierStreamCreator {
         // Create the LockupDynamic stream
         streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
     }
+
+    function createExponentialStream(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
+       
+        // Approve the Sablier contract to spend DAI
+        IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
+
+        // Declare the params struct
+        LockupDynamic.CreateWithDeltas memory params;
+
+        // Declare the function parameters
+        params.sender = address(this); // The sender will be able to cancel the stream
+        params.recipient = recipient_; // The recipient of the streamed assets
+        params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
+        params.asset = IERC20(token_); // The streaming asset
+        params.cancelable = true; // Whether the stream will be cancelable or not
+        params.transferable = true; // Whether the stream will be transferable or not
+        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
+
+        // Declare a single-size segment to match the curve shape
+        params.segments = new LockupDynamic.SegmentWithDelta[](1);
+        params.segments[0] =
+            LockupDynamic.SegmentWithDelta({ amount: amount_.toUint128(), delta: 100 days, exponent: ud2x18(6e18) });
+
+        // Create the LockupDynamic stream
+        streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+    }
+
+    // function createStreamWithSegments(uint256 amount_, address token_, address recipient_) external returns (uint256 streamId) {
+       
+    //     // Approve the Sablier contract to spend DAI
+    //     IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
+
+    //     // Declare the params struct
+    //     LockupDynamic.CreateWithDeltas memory params;
+
+    //     // Declare the function parameters
+    //     params.sender = address(this); // The sender will be able to cancel the stream
+    //     params.recipient = recipient_; // The recipient of the streamed assets
+    //     params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
+    //     params.asset = IERC20(token_); // The streaming asset
+    //     params.cancelable = true; // Whether the stream will be cancelable or not
+    //     params.transferable = true; // Whether the stream will be transferable or not
+    //     params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
+
+    //     // Declare a single-size segment to match the curve shape
+    //     params.segments = new LockupDynamic.SegmentWithDelta[](1);
+    //     params.segments[0] =
+    //         LockupDynamic.SegmentWithDelta({ amount: uint128(totalAmount), delta: 100 days, exponent: ud2x18(6e18) });
+
+    //     // Create the LockupDynamic stream
+    //     streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+    // }
     
 }

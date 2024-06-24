@@ -12,13 +12,13 @@ import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator} from "src/Sablier/SablierStreamCreator.sol";
 
 
-/// @title Options Token Vested Exercise Contract
+/// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market price 
-/// and vested/released linearly over a set period of time per account.
+/// and vested/released exponentially over a set period of time per account.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
+contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// Library usage ///
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
@@ -69,12 +69,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
 
-    /// @notice The length of time tokens will be vested before they are begin to release to the user - this is the cliff
-    uint40 public cliffDuration;
-
-    /// @notice The length of time it takes for the vested tokens to be fully released - this is the totalDuration
-    uint40 public totalDuration;
-
     /// @notice The amount of payment tokens the user can claim
     /// Used when the contract does not have enough tokens to pay the user
     mapping (address => uint256) public credit;
@@ -89,15 +83,11 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         IERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
-        uint40 cliffDuration_,
-        uint40 totalDuration_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
-        cliffDuration = cliffDuration_;
-        totalDuration = totalDuration_;
 
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
@@ -129,7 +119,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         uint256 amount = credit[msg.sender];
         if (amount == 0) revert Exercise__NothingToClaim();
         credit[msg.sender] = 0;
-        (, streamId) = _createLinearStream(to, amount);
+        (, streamId) = _createExponentialStream(to, amount);
     }
 
 
@@ -166,16 +156,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetMultiplier(multiplier_);
     }
 
-    function setCliffDuration(uint40 cliffDuration_) external onlyOwner {
-        if(cliffDuration_ > totalDuration) revert Exercise__InvalidCliffDuration(cliffDuration_);
-        cliffDuration = cliffDuration_;
-    }
-
-    function setTotalDuration(uint40 totalDuration_) external onlyOwner {
-        if(totalDuration_ < cliffDuration) revert Exercise__InvalidTotalDuration(totalDuration_);
-        totalDuration = totalDuration_;
-    }
-
 
     //////////////////////////
     /// Internal functions ///
@@ -196,21 +176,21 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         distributeFeesFrom(paymentAmount, paymentToken, from);
         
         // create the token stream
-        ( , streamId) = _createLinearStream(recipient, amount);
+        ( , streamId) = _createExponentialStream(recipient, amount);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
 
-    function _createLinearStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) { 
+    function _createExponentialStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) { 
         uint256 balance = underlyingToken.balanceOf(address(this));
         if (amount > balance) {
-            streamId = createLinearStream(cliffDuration, totalDuration, balance, address(underlyingToken), to);
+            streamId = createExponentialStream(balance, address(underlyingToken), to);
             remainingAmount = amount - balance;
         } else {
-            streamId = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
+            streamId = createExponentialStream(amount, address(underlyingToken), to);
         }
         credit[to] += remainingAmount;
-    } 
+    }
 
     ////////////////////////
     /// Helper Functions ///

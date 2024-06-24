@@ -2,7 +2,7 @@
 pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
-import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
+import {ExponentialVestedTokenExercise} from "../src/exercise/ExponentialVestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
 import {SablierStreamCreator} from "../src/Sablier/SablierStreamCreator.sol";
@@ -26,7 +26,7 @@ struct Params {
     uint128 minPrice;
 }
 
-contract VestedTokenExerciseTest is Test {
+contract ExpoentialExponentialVestedTokenExercise is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
@@ -41,7 +41,7 @@ contract VestedTokenExerciseTest is Test {
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
     address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // <-- BSC/ETH --> 0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9
-    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
+    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa);
 
     // fork vars
     uint256 bscFork;
@@ -68,15 +68,13 @@ contract VestedTokenExerciseTest is Test {
 
     // vars for contracts we will deploy
     OptionsToken optionsToken;
-    VestedTokenExercise exerciser;
+    ExponentialVestedTokenExercise exerciser;
     ISablierV2LockupLinear internal sablierLinear;
     ISablierV2LockupDynamic internal sablierDynamic;
     ThenaOracle oracle;
     IERC20 paymentToken;
     IERC20 underlyingToken;    
 
-    uint40 cliffDuration = 1 days;
-    uint40 totalDuration = 30 days;
 
   
     function setUp() public {
@@ -122,19 +120,17 @@ contract VestedTokenExerciseTest is Test {
         sablierLinear = ISablierV2LockupLinear(SABLIER_LINEAR_ADDRESS);
         sablierDynamic = ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS);
 
-        exerciser = new VestedTokenExercise(
+        exerciser = new ExponentialVestedTokenExercise(
             optionsToken,
             owner,
             SABLIER_LINEAR_ADDRESS,
             SABLIER_DYNAMIC_ADDRESS,
-            //IERC20(PAYMENT_TOKEN_ADDRESS),
-            //IERC20(UNDERLYING_TOKEN_ADDRESS),
+         
             paymentToken,
             underlyingToken,
             oracle,
             PRICE_MULTIPLIER, // 50% discount
-            cliffDuration,
-            totalDuration,
+     
             feeRecipients_,
             feeBPS_
         );
@@ -154,37 +150,7 @@ contract VestedTokenExerciseTest is Test {
         vm.stopPrank();
     }
 
-    function test_setUp() public {
-        assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, 18);
-        // assertEq(address(underlyingToken), UNDERLYING_TOKEN_ADDRESS);
-        // assertEq(address(paymentToken), PAYMENT_TOKEN_ADDRESS);
-        // assertEq(address(optionsToken.owner()), owner);
-    }
-
-    function test_getPrice() public {
-        uint256 oraclePrice = oracle.getPrice();
-        assertGt(oraclePrice, ORACLE_MIN_PRICE, "Price too low");
-    }
-
-    function test_vestedOnlyTokenAdminCanMint(uint256 amount, address hacker) public {
-        vm.assume(hacker != tokenAdmin);
-
-        // try minting as non token admin
-        vm.startPrank(hacker);
-        vm.expectRevert(OptionsToken.OptionsToken__NotTokenAdmin.selector);
-        optionsToken.mint(address(this), amount);
-        vm.stopPrank();
-
-        // mint as token admin
-        vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
-
-        // verify balance
-        assertEqDecimal(optionsToken.balanceOf(address(this)), amount, 18);
-    }
-
-
-    function test_exerciseAndCreateSablierLinearStream(uint256 amount, address recipient) public {
+    function test_exerciseAndCreateSablierStreamExpo(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
         amount = bound(amount, 100, type(uint128).max);
 
@@ -202,7 +168,7 @@ contract VestedTokenExerciseTest is Test {
         deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
         
-        uint256 expectedStreamId = sablierLinear.nextStreamId();
+        uint256 expectedStreamId = sablierDynamic.nextStreamId();
 
         vm.prank(user);
         (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
@@ -219,48 +185,5 @@ contract VestedTokenExerciseTest is Test {
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
-    }
-    
-
-    function test_vestedExerciseNotOToken(uint256 amount, address recipient) public {
-        amount = bound(amount, 0, type(uint128).max);
-
-        // mint options tokens
-        vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
-
-        // took this from the contract
-        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
-        uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
-        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
-        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
-
-        // exercise options tokens which should fail
-        vm.expectRevert(BaseExercise.Exercise__NotOToken.selector);
-        exerciser.exercise(address(this), amount, recipient, "");
-    }
-
-    function test_vestedExerciseNotExerciseContract(uint256 amount, address recipient) public {
-        amount = bound(amount, 1, type(uint128).max);
-
-        // mint options tokens
-        vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
-
-        // set option inactive
-        vm.prank(owner);
-        optionsToken.setExerciseContract(address(exerciser), false);
-
-        // mint payment tokens
-        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
-        uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
-        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
-        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
-
-        // exercise options tokens which should fail
-        vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
-        optionsToken.exercise(amount, recipient, address(exerciser), "");
     }
 }
