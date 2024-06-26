@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {ExponentialVestedTokenExercise} from "../src/exercise/ExponentialVestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
-import {SablierStreamCreator} from "../src/Sablier/SablierStreamCreator.sol";
+import {SablierStreamCreator} from "../src/sablier/SablierStreamCreator.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 

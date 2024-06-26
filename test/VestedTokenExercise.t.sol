@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
-import {SablierStreamCreator} from "../src/Sablier/SablierStreamCreator.sol";
+import {SablierStreamCreator} from "../src/sablier/SablierStreamCreator.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 
@@ -181,6 +181,25 @@ contract VestedTokenExerciseTest is Test {
 
         // verify balance
         assertEqDecimal(optionsToken.balanceOf(address(this)), amount, 18);
+    }
+
+    function test_vestedOnlyOwnerCanSetCliffDuration(address hacker) public {
+        vm.assume(hacker != exerciser.owner());
+
+        vm.startPrank(hacker);
+        vm.expectRevert();
+        exerciser.setCliffDuration(uint40(1111));
+        vm.stopPrank();
+    }
+
+    function test_vestedOnlyOwnerCanSetTotalDuration(address hacker) public {
+        vm.assume(hacker != exerciser.owner());
+
+        vm.startPrank(hacker);
+        vm.expectRevert();
+        exerciser.setTotalDuration(uint40(1111));
+        vm.stopPrank();
+
     }
 
 
