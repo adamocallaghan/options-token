@@ -266,7 +266,7 @@ contract VestedTokenExerciseTest is Test {
     
     function test_vestedClaimCreditedWhenContractIsNotFunded(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
-        amount = bound(amount, 1e38, type(uint128).max); // bound above 1e20 because we deal the exercisor with 1e20 underlying tokens
+        amount = bound(amount, 100, type(uint128).max); // bound above 1e20 because we deal the exercisor with 1e20 underlying tokens
 
         // mint options tokens
         vm.prank(tokenAdmin);
@@ -303,9 +303,9 @@ contract VestedTokenExerciseTest is Test {
         // verify exercisor contract is out of tokens
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 0, 18, "exerciser still has underlying tokens");
 
-        // verify credited amount
-        uint256 amountCredited = exerciser.getCredits(user);
-        uint256 expectedCreditedAmount = amount - 1e38; // 1e20 is the amount we dealt the exercisor with
+        // verify credited amount @adam
+        uint256 amountCredited = exerciser.credit(user);
+        uint256 expectedCreditedAmount = amount - 100; // 1e20 is the amount we dealt the exercisor with
         console.log("expectedCreditedAmount", expectedCreditedAmount);
         console.log("amount credited", amountCredited);
         assertEq(amountCredited, expectedCreditedAmount, "credited amount not correct");

@@ -224,7 +224,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
-
+    //@note dont need
     function getCredits(address account) external view returns (uint256) {
         return credit[account];
     }

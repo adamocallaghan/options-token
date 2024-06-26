@@ -56,40 +56,6 @@ abstract contract SablierStreamCreator {
         streamId = LOCKUP_LINEAR.createWithDurations(params);
     }
 
-    //@note could turn the amount0_ and amount1_ into an array of ammounts. Would need to loop through array to pass them into segments here
-    function createDynamicStream(uint128 totalAmount_, uint128 amount0_, uint128 amount1_, address token_, address recipient_)
-        internal
-        virtual 
-        returns (uint256 streamId)
-    {
-
-        // Approve the Sablier contract to pull the tokens from this contract
-        IERC20(token_).approve(address(LOCKUP_DYNAMIC), totalAmount_);
-
-        LockupDynamic.CreateWithMilestones memory params;
-
-        // Declare the function parameters
-        params.sender = address(this); // The sender will be able to cancel the stream
-        params.startTime = uint40(block.timestamp + 100 seconds);
-        params.cancelable = true; // Whether the stream will be cancelable or not
-        params.transferable = true; // Whether the stream will be transferable or not
-        params.recipient = recipient_; // The recipient of the streamed assets
-        params.totalAmount = totalAmount_; // Total amount is the amount inclusive of all fees
-        params.asset = IERC20(token_); // The streaming asset
-        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-
-        // Declare some dummy segments
-        // amount - uint128: The amount of tokens to stream in the segment.
-        // exponent - ud2x18: The exponent of the streaming function in the segment. This changes the curve of the stream.
-        // milestone - uint40: The Unix timestamp at which the segment will end.
-        params.segments = new LockupDynamic.Segment[](2);
-        params.segments[0] = LockupDynamic.Segment({amount: amount0_, exponent: ud2x18(1e18), milestone: uint40(block.timestamp + 4 weeks)});
-        params.segments[1] = (LockupDynamic.Segment({amount: amount1_, exponent: ud2x18(3.14e18), milestone: uint40(block.timestamp + 52 weeks)}));
-
-        // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
-    }
-
     function createExponentialStream(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
        
         // Approve the Sablier contract to spend DAI
@@ -139,7 +105,7 @@ abstract contract SablierStreamCreator {
         streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
     }
 
-    //@note can't pass an array of udx218 types
+    //@note can't pass an array of udx218 types @adam - I'm thinking this is the function exercise contract can implement to build their custom shapes
     function setSegments(uint128[] calldata amounts_, uint256[] calldata exponents_, uint40[] calldata deltas_) public virtual returns (LockupDynamic.SegmentWithDelta[] memory){}
    
     
