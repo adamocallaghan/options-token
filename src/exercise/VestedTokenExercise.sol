@@ -204,6 +204,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     function _createLinearStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) { 
         uint256 balance = underlyingToken.balanceOf(address(this));
+         
         if (amount > balance) {
             streamId = createLinearStream(cliffDuration, totalDuration, balance, address(underlyingToken), to);
             remainingAmount = amount - balance;
@@ -211,6 +212,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
             streamId = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
         }
         credit[to] += remainingAmount;
+
     } 
 
     ////////////////////////
@@ -223,4 +225,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 
+    function getCredits(address account) external view returns (uint256) {
+        return credit[account];
+    }
 }
