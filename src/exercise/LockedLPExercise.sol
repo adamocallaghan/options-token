@@ -16,7 +16,7 @@ import {IRouter} from "../interfaces/IRouter.sol";
 import {IPairFactory} from "../interfaces/IPairFactory.sol";
 import {IPair} from "../interfaces/IPair.sol";
 
-import {SablierStreamCreator} from "./Sablier/SablierStreamCreator.sol";
+import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
 
 struct LockedExerciseParams {
     uint256 maxPaymentAmount;
@@ -95,6 +95,8 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
+        address lockUpLinear_,
+        address lockUpDynamic_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
@@ -102,7 +104,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         address factory_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
         factory = factory_;

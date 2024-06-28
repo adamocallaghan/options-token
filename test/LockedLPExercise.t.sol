@@ -60,6 +60,7 @@ contract LockedLPExerciseTest is Test {
 
     // Sablier
     ISablierV2LockupLinear public immutable LOCKUP_LINEAR = ISablierV2LockupLinear(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // Linear on BSC
+    ISablierV2LockupLinear public constant SABLIER_DYNAMIC_ADDRESS = ISablierV2LockupLinear(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
 
     // EOA vars
     address owner;
@@ -125,7 +126,17 @@ contract LockedLPExerciseTest is Test {
 
         // deploy LockedExercise contract
         exerciser = new LockedExercise(
-            optionsToken, owner, IERC20(PAYMENT_TOKEN_ADDRESS), IERC20(TOKEN_ADDRESS), oracle, THENA_ROUTER, THENA_FACTORY, feeRecipients_, feeBPS_
+            optionsToken,
+            owner,
+            address(LOCKUP_LINEAR),
+            address(SABLIER_DYNAMIC_ADDRESS),
+            IERC20(PAYMENT_TOKEN_ADDRESS),
+            IERC20(TOKEN_ADDRESS),
+            oracle,
+            THENA_ROUTER,
+            THENA_FACTORY,
+            feeRecipients_,
+            feeBPS_
         );
 
         // add exerciser to the list of options

@@ -9,14 +9,11 @@ import {SablierStreamCreator} from "../src/sablier/SablierStreamCreator.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 
-
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
-
-
 
 struct Params {
     IThenaPair pair;
@@ -40,7 +37,7 @@ contract VestedTokenExerciseTest is Test {
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); 
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2);
     address public constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
 
     // fork vars
@@ -73,20 +70,19 @@ contract VestedTokenExerciseTest is Test {
     ISablierV2LockupDynamic internal sablierDynamic;
     ThenaOracle oracle;
     IERC20 paymentToken;
-    IERC20 underlyingToken;    
+    IERC20 underlyingToken;
 
     uint40 cliffDuration = 1 days;
     uint40 totalDuration = 30 days;
 
-  
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
         //vm.selectFork(bscFork);
 
         // set up accounts and fee recipients
-        owner = makeAddr("owner"); 
-        vm.deal(owner, 1 ether); 
+        owner = makeAddr("owner");
+        vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
         vm.deal(tokenAdmin, 1 ether);
         user = makeAddr("user");
@@ -101,8 +97,8 @@ contract VestedTokenExerciseTest is Test {
         feeBPS_[1] = 9000; // 90%
 
         // deploy contracts
-       paymentToken = IERC20(PAYMENT_TOKEN_ADDRESS);
-       underlyingToken =  IERC20(UNDERLYING_TOKEN_ADDRESS);
+        paymentToken = IERC20(PAYMENT_TOKEN_ADDRESS);
+        underlyingToken = IERC20(UNDERLYING_TOKEN_ADDRESS);
 
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, "");
@@ -137,8 +133,7 @@ contract VestedTokenExerciseTest is Test {
             feeBPS_
         );
 
-
-        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption    
+        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
         assertEq(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, "exerciser not funded");
 
         // add exerciser to the list of options
@@ -148,7 +143,7 @@ contract VestedTokenExerciseTest is Test {
 
         vm.startPrank(user);
         paymentToken.approve(address(exerciser), type(uint256).max); // exerciser contract can spend all payment tokens
-       // IERC20(UNDERLYING_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
+        // IERC20(UNDERLYING_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
         vm.stopPrank();
     }
 
@@ -197,7 +192,6 @@ contract VestedTokenExerciseTest is Test {
         vm.expectRevert();
         exerciser.setTotalDuration(uint40(1111));
         vm.stopPrank();
-
     }
 
     function test_vestedOnlyOwnerCanChangeMultiplier(address hacker) public {
@@ -221,30 +215,29 @@ contract VestedTokenExerciseTest is Test {
     //     vm.stopPrank();
     // }
 
-
     function test_exerciseAndCreateSablierLinearStream(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
-        amount = bound(amount, 100, 1e38); 
+        amount = bound(amount, 100, 1e38);
 
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(user, amount);
-        
+
         // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         console.log("price", price);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
         console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
-        
+
         // give payment tokens
         deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
-        
+
         uint256 expectedStreamId = sablierLinear.nextStreamId();
 
         vm.prank(user);
-        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
-        
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
         assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
@@ -263,7 +256,7 @@ contract VestedTokenExerciseTest is Test {
         // verify underlying tokens were transferred from exerciser
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e38 - amount, 18, "exerciser still has underlying tokens");
     }
-    
+
     function test_vestedClaimCreditedWhenContractIsNotFunded(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
         amount = bound(amount, 100, type(uint128).max); // bound above 1e20 because we deal the exercisor with 1e20 underlying tokens
@@ -271,21 +264,21 @@ contract VestedTokenExerciseTest is Test {
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(user, amount);
-        
+
         // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         console.log("price", price);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
         console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
-        
+
         // give payment tokens
         deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
-        
+
         uint256 expectedStreamId = sablierLinear.nextStreamId();
 
         vm.prank(user);
-        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
 
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
@@ -309,7 +302,41 @@ contract VestedTokenExerciseTest is Test {
         console.log("expectedCreditedAmount", expectedCreditedAmount);
         console.log("amount credited", amountCredited);
         assertEq(amountCredited, expectedCreditedAmount, "credited amount not correct");
+    }
 
+    function test_vestedClaimCreditedWhenContractIsNotFunded_v2(uint256 amount, address recipient) public {
+        vm.assume(recipient != address(0));
+        amount = bound(amount, 100, 5000);
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(user, amount);
+
+        // took this from the contract
+        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
+        console.log("price", price);
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
+
+        // give payment tokens
+        deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
+
+        uint256 expectedStreamId = sablierLinear.nextStreamId();
+
+        // user exercises otokens
+        vm.prank(user);
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+
+        // verify exercisor contract is out of tokens
+        assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 0, 18, "exerciser still has underlying tokens");
+
+        // verify credited amount @adam
+        uint256 amountCredited = exerciser.credit(user);
+        uint256 expectedCreditedAmount = amount - 100; // 1e20 is the amount we dealt the exercisor with
+        console.log("expectedCreditedAmount", expectedCreditedAmount);
+        console.log("amount credited", amountCredited);
+        assertEq(amountCredited, expectedCreditedAmount, "credited amount not correct");
     }
 
     function test_vestedExerciseNotOToken(uint256 amount, address recipient) public {
@@ -322,7 +349,7 @@ contract VestedTokenExerciseTest is Test {
         // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
+
         deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
 
@@ -345,7 +372,7 @@ contract VestedTokenExerciseTest is Test {
         // mint payment tokens
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
+
         deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
 
