@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.13;
 
 import {OwnableUpgradeable} from "oz-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC20Upgradeable} from "oz-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -102,7 +102,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         returns (
             uint256 paymentAmount,
             address,
-            uint256 streamId,
+            uint256,
             uint256 // misc data
         )
     {
@@ -131,7 +131,7 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         returns (
             uint256 paymentAmount,
             address data0,
-            uint256 streamId,
+            uint256 data1,
             uint256 data2 // misc data
         )
     {
@@ -145,10 +145,10 @@ contract OptionsToken is IOptionsToken, ERC20Upgradeable, OwnableUpgradeable, UU
         _burn(msg.sender, amount);
 
         // give rewards to recipient
-        (paymentAmount, , streamId, ) = IExercise(option).exercise(msg.sender, amount, recipient, params);
+        (paymentAmount, data0, data1, data2) = IExercise(option).exercise(msg.sender, amount, recipient, params);
 
         // emit event
-        emit Exercise(msg.sender, recipient, amount, data0, streamId, data2);
+        emit Exercise(msg.sender, recipient, amount, data0, data1, data2);
     }
 
     /// -----------------------------------------------------------------------
