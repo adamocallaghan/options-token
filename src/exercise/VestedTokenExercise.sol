@@ -31,6 +31,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidTotalDuration(uint40);
     error Exercise__InvalidCliffDuration(uint40);
     error Exercise__NothingToClaim();
+    error Error__ContractOutOfTokens();
 
     /// Events ///
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -181,6 +182,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
+        contractHasTokens(amount)
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
         // apply multiplier to price
@@ -223,5 +225,12 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     function getCredits(address account) external view returns (uint256) {
         return credit[account];
+    }
+
+    modifier contractHasTokens(uint256 amount) {
+        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
+            revert Error__ContractOutOfTokens();
+        }
+        _;
     }
 }

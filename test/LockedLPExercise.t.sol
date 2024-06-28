@@ -115,10 +115,6 @@ contract LockedLPExerciseTest is Test {
         optionsToken.initialize("XYZ Call Option Token", "oXYZ", tokenAdmin);
         optionsToken.transferOwnership(owner);
 
-        // address[] memory tokens = new address[](2);
-        // tokens[0] = address(paymentToken);
-        // tokens[1] = address(underlyingToken);
-
         // set up the thena oracle parameters
         _default = Params(IThenaPair(POOL_ADDRESS), TOKEN_ADDRESS, address(this), 30 minutes, 1000);
         // deploy oracle contract
@@ -261,7 +257,7 @@ contract LockedLPExerciseTest is Test {
         vm.warp(block.timestamp + lockDuration + 200 seconds);
 
         // withdraw tokens
-        LOCKUP_LINEAR.withdraw({streamId: streamId, to: address(0x006217c47ffA5Eb3F3c92247ffFE22AD998242c5), amount: uint128(123)});
+        LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: address(0x006217c47ffA5Eb3F3c92247ffFE22AD998242c5)});
 
         // user balance after withdrawal
         uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(msg.sender);

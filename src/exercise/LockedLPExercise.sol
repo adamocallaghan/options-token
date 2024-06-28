@@ -41,6 +41,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     error Exercise__PastDeadline();
     error Exercise__InvalidMultiplier();
     error Exercise__InvalidOracle();
+    error Error__ContractOutOfTokens();
 
     /// Events
     event SetOracle(IOracle indexed newOracle);
@@ -128,6 +129,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
+        contractHasTokens(amount)
         returns (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId)
     {
         // ===============
@@ -240,5 +242,12 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
         slope = int256(maxLpLockDuration - minLpLockDuration) / (int256(maxMultiplier) - int256(minMultiplier));
         intercept = int256(minLpLockDuration) - (slope * int256(minMultiplier));
+    }
+
+    modifier contractHasTokens(uint256 amount) {
+        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
+            revert Error__ContractOutOfTokens();
+        }
+        _;
     }
 }
