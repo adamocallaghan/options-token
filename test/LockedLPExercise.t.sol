@@ -17,6 +17,7 @@ import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
 import {IPair} from "../src/interfaces/IPair.sol";
 import {IPairFactory} from "../src/interfaces/IPairFactory.sol";
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
+import {Lockup, LockupLinear} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 struct Params {
     IThenaPair pair;
@@ -24,6 +25,17 @@ struct Params {
     address owner;
     uint32 secs;
     uint128 minPrice;
+}
+
+struct StreamDetails {
+    address sender;
+    address recipient;
+    address tokenAddress;
+    uint256 balance;
+    uint256 startTime;
+    uint256 stopTime;
+    uint256 remainingBalance;
+    uint256 ratePerSecond;
 }
 
 contract LockedLPExerciseTest is Test {
@@ -132,12 +144,9 @@ contract LockedLPExerciseTest is Test {
         vm.stopPrank();
     }
 
-    function test_getPrice() public {
-        uint256 oraclePrice = oracle.getPrice();
-
-        uint256 spotPrice = getSpotPrice(_default.pair, _default.token);
-        assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too large"); // 1%
-    }
+    // ==============================
+    // == EXERCISE WITH MULTIPLIER ==
+    // ==============================
 
     function exerciseWithMultiplier(uint256 amount, uint256 multiplier)
         public
@@ -162,6 +171,10 @@ contract LockedLPExerciseTest is Test {
 
         (paymentAmount, lpTokenAddress, lockDuration, streamId) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
+
+    // =================================
+    // == Exercise Return Value tests ==
+    // =================================
 
     function test_returnedLpTokenAddressIsCorrect(uint256 amount, uint256 multiplier) public {
         // returned token address
@@ -194,6 +207,98 @@ contract LockedLPExerciseTest is Test {
         (,,, uint256 streamIdReturned) = exerciseWithMultiplier(amount, multiplier);
 
         assertEq(nextStreamId, streamIdReturned);
+    }
+
+    // ===================
+    // == Sablier tests ==
+    // ===================
+
+    function test_Sablier_ExerciseContractIsSetAsSender(uint256 amount, uint256 multiplier) public {
+        // exercise tokens with lock
+        (,,, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+
+        // get stream information following lock
+        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+
+        assertEq(address(exerciser), streamDetails.sender);
+    }
+
+    function test_Sablier_StreamStartAndEndTimesAreCorrect(uint256 amount, uint256 multiplier) public {
+        // exercise tokens with lock
+        (,, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+
+        // get stream information following lock
+        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+
+        uint256 lockStartTime = block.timestamp + lockDuration;
+        uint256 lockEndTime = lockStartTime + 100;
+
+        assertEq(lockStartTime, streamDetails.cliffTime);
+        assertEq(lockEndTime, streamDetails.endTime);
+    }
+
+    function test_Sablier_UserCanWithdrawMaxTokensAfterUnlockDate(uint256 amount, uint256 multiplier) public {
+        // exercise tokens with lock
+        (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+
+        // get stream information following lock
+        // LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+        uint128 streamBalance = LOCKUP_LINEAR.getDepositedAmount(streamId);
+        // address streamRecipient = LOCKUP_LINEAR.getRecipient(streamId);
+
+        // warp the block past the unlock date
+        vm.warp(block.timestamp + lockDuration + 200 seconds);
+
+        // withdraw tokens
+        LOCKUP_LINEAR.withdraw({streamId: streamId, to: address(0x006217c47ffA5Eb3F3c92247ffFE22AD998242c5), amount: uint128(123)});
+
+        // user balance after withdrawal
+        uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(msg.sender);
+
+        // assertEq(msg.sender, streamRecipient);
+        assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
+    }
+
+    // @note not fuzzed, testing with set params
+    function test_Sablier_WithdrawBasic() public {
+        // 12000 otokens and 50% discount
+        (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(12000, 5000);
+        // get stream information following lock
+        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+
+        LOCKUP_LINEAR.withdraw({streamId: streamId, to: streamDetails.sender, amount: 105});
+    }
+
+    function test_Sablier_StreamIsNotDepleted_BeforeBlockWarped(uint256 amount, uint256 multiplier) public {
+        (,,, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+        bool streamDepletionStatus = LOCKUP_LINEAR.isDepleted(streamId);
+        assertEq(streamDepletionStatus, false);
+    }
+
+    function test_Sablier_StreamIsNotDepleted_AfterBlockWarped(uint256 amount, uint256 multiplier) public {
+        (,, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+        vm.warp(block.timestamp + lockDuration + 200 seconds);
+        bool streamDepletionStatus = LOCKUP_LINEAR.isDepleted(streamId);
+        assertEq(streamDepletionStatus, false);
+    }
+
+    // ===========================
+    // == Exercise Revert tests ==
+    // ===========================
+
+    // ==========================
+    // == Liquidity Pool tests ==
+    // ==========================
+
+    // ==================
+    // == ORACLE TESTS ==
+    // ==================
+
+    function test_getPrice() public {
+        uint256 oraclePrice = oracle.getPrice();
+
+        uint256 spotPrice = getSpotPrice(_default.pair, _default.token);
+        assertApproxEqRel(oraclePrice, spotPrice, 0.01 ether, "Price delta too large"); // 1%
     }
 
     function getSpotPrice(IThenaPair pair, address token) internal view returns (uint256 price) {
