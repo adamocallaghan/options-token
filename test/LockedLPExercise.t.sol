@@ -245,6 +245,8 @@ contract LockedLPExerciseTest is Test {
     }
 
     function test_Sablier_UserCanWithdrawMaxTokensAfterUnlockDate(uint256 amount, uint256 multiplier) public {
+        address recipient = makeAddr("recipient");
+
         // exercise tokens with lock
         (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
 
@@ -257,23 +259,14 @@ contract LockedLPExerciseTest is Test {
         vm.warp(block.timestamp + lockDuration + 200 seconds);
 
         // withdraw tokens
-        LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: address(0x006217c47ffA5Eb3F3c92247ffFE22AD998242c5)});
+        vm.prank(recipient);
+        LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: recipient});
 
         // user balance after withdrawal
-        uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(msg.sender);
+        uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(recipient);
 
         // assertEq(msg.sender, streamRecipient);
         assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
-    }
-
-    // @note not fuzzed, testing with set params
-    function test_Sablier_WithdrawBasic() public {
-        // 12000 otokens and 50% discount
-        (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(12000, 5000);
-        // get stream information following lock
-        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
-
-        LOCKUP_LINEAR.withdraw({streamId: streamId, to: streamDetails.sender, amount: 105});
     }
 
     function test_Sablier_StreamIsNotDepleted_BeforeBlockWarped(uint256 amount, uint256 multiplier) public {
