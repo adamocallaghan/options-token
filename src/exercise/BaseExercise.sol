@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.19;
 
 import {IExercise} from "../interfaces/IExercise.sol";
 import {IOptionsToken} from "../OptionsToken.sol";
@@ -70,7 +70,7 @@ abstract contract BaseExercise is IExercise, Owned {
 
     /// @notice Distributes fees to the fee recipients from a token holder who has approved
     /// @dev Sends the residual amount to the last fee recipient to avoid rounding errors
-    //@audit - I think this needs to return the remaining amount of tokens. I think we are "double spending" tokens be collecting fee
+    //@note these are the tokens needed tp be paid to redeem the oToken position
     function distributeFeesFrom(uint256 totalAmount, IERC20 token, address from) internal virtual {
         uint256 remaining = totalAmount;
         for (uint256 i = 0; i < feeRecipients.length - 1; i++) {
