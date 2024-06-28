@@ -12,6 +12,7 @@ import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
+import { ISablierV2Lockup } from "@sablier/v2-core/src/interfaces/ISablierV2Lockup.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
@@ -46,6 +47,9 @@ contract VestedTokenExerciseTest is Test {
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
+    //uint256 currentBlock = block.number; 
+    uint256 constant BLOCKS_IN_30_DAYS = 864000; // 30 days * 24 hours * 60 minutes * 60 seconds / 3 seconds per block
+    //uint256 forkTestStartBlock = currentBlock - BLOCKS_IN_30_DAYS;
 
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
@@ -71,6 +75,7 @@ contract VestedTokenExerciseTest is Test {
     VestedTokenExercise exerciser;
     ISablierV2LockupLinear internal sablierLinear;
     ISablierV2LockupDynamic internal sablierDynamic;
+    ISablierV2Lockup internal sablierLockUp;
     ThenaOracle oracle;
     IERC20 paymentToken;
     IERC20 underlyingToken;    
@@ -78,10 +83,14 @@ contract VestedTokenExerciseTest is Test {
     uint40 cliffDuration = 1 days;
     uint40 totalDuration = 30 days;
 
+    uint256 blockNumBeforeFork;
+
   
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
+        blockNumBeforeFork = block.number;
+        vm.rollFork(block.number - BLOCKS_IN_30_DAYS);
         //vm.selectFork(bscFork);
 
         // set up accounts and fee recipients
@@ -121,6 +130,7 @@ contract VestedTokenExerciseTest is Test {
 
         sablierLinear = ISablierV2LockupLinear(SABLIER_LINEAR_ADDRESS);
         sablierDynamic = ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS);
+        sablierLockUp = ISablierV2Lockup(SABLIER_LINEAR_ADDRESS);
 
         exerciser = new VestedTokenExercise(
             optionsToken,
@@ -154,6 +164,9 @@ contract VestedTokenExerciseTest is Test {
 
     function test_setUp() public {
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, 18);
+        console.log("block #: ", block.number);
+        assertEq(block.number, (blockNumBeforeFork - BLOCKS_IN_30_DAYS), "fork not started");
+
         // assertEq(address(underlyingToken), UNDERLYING_TOKEN_ADDRESS);
         // assertEq(address(paymentToken), PAYMENT_TOKEN_ADDRESS);
         // assertEq(address(optionsToken.owner()), owner);
@@ -209,6 +222,47 @@ contract VestedTokenExerciseTest is Test {
         vm.stopPrank();
     }
 
+    function test_vestedExerciseNotOToken(uint256 amount, address recipient) public {
+        amount = bound(amount, 0, type(uint128).max);
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // took this from the contract
+        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
+
+        // exercise options tokens which should fail
+        vm.expectRevert(BaseExercise.Exercise__NotOToken.selector);
+        exerciser.exercise(address(this), amount, recipient, "");
+    }
+
+    function test_vestedExerciseNotExerciseContract(uint256 amount, address recipient) public {
+        amount = bound(amount, 1, type(uint128).max);
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // set option inactive
+        vm.prank(owner);
+        optionsToken.setExerciseContract(address(exerciser), false);
+
+        // mint payment tokens
+        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
+
+        // exercise options tokens which should fail
+        vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
+        optionsToken.exercise(amount, recipient, address(exerciser), "");
+    }
     // function test_vestedOnlyOwnerCanChangeOracle(address hacker) public {
     //     vm.assume(hacker != exerciser.owner());
 
@@ -309,48 +363,41 @@ contract VestedTokenExerciseTest is Test {
         console.log("expectedCreditedAmount", expectedCreditedAmount);
         console.log("amount credited", amountCredited);
         assertEq(amountCredited, expectedCreditedAmount, "credited amount not correct");
-
     }
 
-    function test_vestedExerciseNotOToken(uint256 amount, address recipient) public {
-        amount = bound(amount, 0, type(uint128).max);
+    function test_sablierWithdraw() public {
 
+        address recipient = makeAddr("recipient");
         // mint options tokens
         vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
+        optionsToken.mint(user, 2e18);
 
-        // took this from the contract
-        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
-        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        // give payment tokens
+        deal(PAYMENT_TOKEN_ADDRESS, user, 2e18);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
+
+        vm.prank(user);
+        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(2e18, recipient, address(exerciser), "");
+        console.log("block number when stream created: ", block.number);
+
+        // test fail withdraw before cliff duration ends
+        vm.prank(recipient);
+        vm.expectRevert();
+        sablierLockUp.withdrawMax({ streamId: streamId, to: recipient });
         
-        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
-        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
+        //move block forward BNB chain makes new blocks every ~ 3 seconds
+        uint256 blocksToMove = 57600; // 48 * 60 * 60 / 3 - 2 days
+        vm.rollFork(block.number + blocksToMove);
+        console.log("block number after cliff duration: ", block.number);
 
-        // exercise options tokens which should fail
-        vm.expectRevert(BaseExercise.Exercise__NotOToken.selector);
-        exerciser.exercise(address(this), amount, recipient, "");
+        uint256 startTime = sablierLinear.getStartTime(streamId);
+        console.log("start time: ", startTime);
+        console.log("block time: ", block.timestamp);
+        vm.prank(recipient);
+        sablierLockUp.withdrawMax({ streamId: streamId, to: recipient });
+
+
     }
 
-    function test_vestedExerciseNotExerciseContract(uint256 amount, address recipient) public {
-        amount = bound(amount, 1, type(uint128).max);
 
-        // mint options tokens
-        vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
-
-        // set option inactive
-        vm.prank(owner);
-        optionsToken.setExerciseContract(address(exerciser), false);
-
-        // mint payment tokens
-        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
-        uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
-        deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
-        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
-
-        // exercise options tokens which should fail
-        vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
-        optionsToken.exercise(amount, recipient, address(exerciser), "");
-    }
 }
