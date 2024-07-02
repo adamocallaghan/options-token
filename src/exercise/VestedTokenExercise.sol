@@ -31,7 +31,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidTotalDuration(uint40);
     error Exercise__InvalidCliffDuration(uint40);
     error Exercise__NothingToClaim();
-    error Error__ContractOutOfTokens();
+    error Exercise__ContractOutOfTokens();
     error Exercise__CliffDurationCannotBeZero();
     error Exercise__TotalDurationCannotBeZero();
 
@@ -103,6 +103,16 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetOracle(oracle_);
     }
 
+    /////////////////
+    /// Modifiers ///
+    /////////////////
+    modifier contractHasTokens(uint256 amount) {
+        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
+            revert Exercise__ContractOutOfTokens();
+        }
+        _;
+    }
+    
     //////////////////////////
     /// External functions ///
     //////////////////////////
@@ -195,21 +205,9 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         distributeFeesFrom(paymentAmount, paymentToken, from);
 
         // create the token stream
-        (, streamId) = _createLinearStream(recipient, amount);
+        (streamId) = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
 
         emit Exercised(from, recipient, amount, paymentAmount);
-    }
-
-    function _createLinearStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) {
-        uint256 balance = underlyingToken.balanceOf(address(this));
-
-        if (amount > balance) {
-            streamId = createLinearStream(cliffDuration, totalDuration, balance, address(underlyingToken), to);
-            remainingAmount = amount - balance;
-        } else {
-            streamId = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
-        }
-        credit[to] += remainingAmount;
     }
 
     ////////////////////////
@@ -221,16 +219,5 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
-    //@note dont need
 
-    function getCredits(address account) external view returns (uint256) {
-        return credit[account];
-    }
-
-    modifier contractHasTokens(uint256 amount) {
-        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
-            revert Error__ContractOutOfTokens();
-        }
-        _;
-    }
 }
