@@ -61,13 +61,13 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.SegmentWithDelta[] calldata segments_) internal returns (uint256 streamId) {
+    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.Segment[] memory segments_) internal returns (uint256 streamId) {
        
         // Approve the Sablier contract to spend DAI
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
         // Declare the params struct
-        LockupDynamic.CreateWithDeltas memory params;
+        LockupDynamic.CreateWithMilestones memory params;
 
         // Declare the function parameters
         params.sender = address(this); // The sender will be able to cancel the stream
@@ -80,13 +80,16 @@ abstract contract SablierStreamCreator {
         params.segments = segments_;
 
         // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+        streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
 
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
     //@note can't pass an array of udx218 types @adam - I'm thinking this is the function exercise contract can implement to build their custom shapes
-    function setSegments(uint128[] calldata amounts_, uint256[] calldata exponents_, uint40[] calldata deltas_) public virtual returns (LockupDynamic.SegmentWithDelta[] memory){}
+    ///@param amounts_ The amount of assets to be streamed in this segment, denoted in units of the asset's decimals.
+    ///@param exponents_ The exponent of this segment, denoted as a fixed-point number. ex. ud2x18(6e18)
+    ///@param milestones_ The Unix timestamp indicating this segment's end.
+    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) public virtual returns (LockupDynamic.Segment[] memory){}
    
 
 

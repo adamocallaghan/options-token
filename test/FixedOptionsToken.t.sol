@@ -161,6 +161,11 @@ contract FixedOptionsTokenTest is Test {
 
         amount = bound(amount, 1, MAX_SUPPLY / 2);
 
+        address hacker = makeAddr("hacker");
+        vm.prank(hacker);
+        vm.expectRevert();
+        exerciser.setMultiplier(10000);
+
         vm.prank(owner);
         exerciser.setMultiplier(10000); // full price
 
@@ -176,6 +181,8 @@ contract FixedOptionsTokenTest is Test {
         FixedExerciseParams memory params = FixedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max});
         (uint256 paidAmount,,,) = optionsToken.exercise(amount, address(this), address(exerciser), abi.encode(params));
 
+        // add checks for exercise results
+
         // update multiplier
         multiplier = bound(multiplier, 1000, 20000);
         vm.prank(owner);
@@ -190,7 +197,7 @@ contract FixedOptionsTokenTest is Test {
         (uint256 newPaidAmount,,,) = optionsToken.exercise(amount, address(this), address(exerciser), abi.encode(params));
         // verify payment tokens were transferred
         assertEqDecimal(paymentToken.balanceOf(address(this)), 0, 18, "user still has payment tokens");
-        assertEq(newPaidAmount, paidAmount.mulDivUp(multiplier, 10000), "incorrect discount");
+        assertEq(newPaidAmount, newPaidAmount.mulDivUp(multiplier, 10000), "incorrect discount");
     }
 
     function test_exerciseHighSlippage(uint256 amount, address recipient) public {

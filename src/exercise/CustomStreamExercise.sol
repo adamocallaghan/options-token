@@ -5,11 +5,13 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {UD2x18} from "@prb/math/src/UD2x18.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
-import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
+import {SablierStreamCreator, LockupDynamic} from "src/sablier/SablierStreamCreator.sol";
+
 
 /// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut
@@ -17,7 +19,7 @@ import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
 /// in this case, by purchasing the underlying token at a discount to the market price
 /// and vested/released exponentially over a set period of time per account.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
-contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
+contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     /// Library usage ///
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
@@ -31,6 +33,8 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidTotalDuration(uint40);
     error Exercise__InvalidCliffDuration(uint40);
     error Exercise__NothingToClaim();
+    error Exercise__InvalidSegments();
+    error Exercise__ContractOutOfTokens();
 
     /// Events ///
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -49,7 +53,7 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     ////////////////////////////
     /// Immutable parameters ///
     ////////////////////////////
-
+    //@note constant vs immutable here?
     /// @notice The token paid by the options token holder during redemption
     IERC20 public immutable paymentToken;
 
@@ -67,6 +71,14 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// @notice The multiplier applied to the TWAP value. Encodes the discount of
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
+
+    // struct Segment {
+    //     uint128 amount;
+    //     UD2x18 exponent;
+    //     uint40 milestone;
+    // }
+
+    LockupDynamic.Segment[] public segments;
 
     //@todo add checks for vesting times
     constructor(
@@ -88,6 +100,17 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
         _setMultiplier(multiplier_);
 
         emit SetOracle(oracle_);
+    }
+
+    /////////////////
+    /// Modifiers ///
+    /////////////////
+    
+    modifier contractHasTokens(uint256 amount) {
+        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
+            revert Exercise__ContractOutOfTokens();
+        }
+        _;
     }
 
     //////////////////////////
@@ -112,6 +135,24 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     ///////////////////////
     /// Owner functions ///
     ///////////////////////
+    ///@notice Sets the shape of the vesting curve for the underlying tokens. 
+    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) external onlyOwner override returns (LockupDynamic.Segment[] memory){
+        if(amounts_.length != exponents_.length || amounts_.length != milestones_.length || milestones_.length != exponents_.length)
+        { 
+            revert Exercise__InvalidSegments();
+        }
+
+        segments = new LockupDynamic.Segment[](amounts_.length);
+        for (uint256 i = 0; i < amounts_.length; i++) {
+            segments[i] = LockupDynamic.Segment({
+                amount: amounts_[i],
+                exponent: ud2x18(exponents_[i]),
+                milestone: milestones_[i]
+            });
+        }
+        return segments;
+    }
+
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -162,21 +203,11 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
         distributeFeesFrom(paymentAmount, paymentToken, from);
 
         // create the token stream
-        (, streamId) = _createExponentialStream(recipient, amount);
+        streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient, segments);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
 
-    function _createExponentialStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) {
-        uint256 balance = underlyingToken.balanceOf(address(this));
-        if (amount > balance) {
-            streamId = createExponentialStream(balance, address(underlyingToken), to);
-            remainingAmount = amount - balance;
-        } else {
-            streamId = createExponentialStream(amount, address(underlyingToken), to);
-        }
-        credit[to] += remainingAmount;
-    }
 
     ////////////////////////
     /// Helper Functions ///
@@ -188,10 +219,4 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 
-    modifier contractHasTokens(uint256 amount) {
-        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
-            revert Error__ContractOutOfTokens();
-        }
-        _;
-    }
 }
