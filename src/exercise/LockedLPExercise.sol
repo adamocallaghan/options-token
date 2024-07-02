@@ -25,7 +25,7 @@ struct LockedExerciseParams {
 }
 
 /// @title Options Token Locked LP Price Exercise Contract
-/// @author @adamo
+/// @author @adamo, @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market
 /// price. Those underlying token are paired 50:50 with additional payment tokens

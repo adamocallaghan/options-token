@@ -12,7 +12,7 @@ import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
 
 /// @title Options Token Vested Exercise Contract
-/// @author @funkornaut
+/// @author @funkornaut, @adamo
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market price
 /// and vested/released linearly over a set period of time per account.
@@ -32,6 +32,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidCliffDuration(uint40);
     error Exercise__NothingToClaim();
     error Error__ContractOutOfTokens();
+    error Exercise__CliffDurationCannotBeZero();
+    error Exercise__TotalDurationCannotBeZero();
 
     /// Events ///
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -96,9 +98,9 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
-        cliffDuration = cliffDuration_;
-        totalDuration = totalDuration_;
 
+        _setCliffDuration(cliffDuration_);
+        _setTotalDuration(totalDuration_);
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
 
@@ -122,14 +124,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
         return _exercise(from, amount, recipient, params);
-    }
-
-    /// @notice Claims the tokens for a user creating a new stream
-    function claim(address to) external returns (uint256 streamId) {
-        uint256 amount = credit[msg.sender];
-        if (amount == 0) revert Exercise__NothingToClaim();
-        credit[msg.sender] = 0;
-        (, streamId) = _createLinearStream(to, amount);
     }
 
     ///////////////////////
@@ -167,11 +161,21 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     }
 
     function setCliffDuration(uint40 cliffDuration_) external onlyOwner {
+        _setCliffDuration(cliffDuration_);
+    }
+
+    function _setCliffDuration(uint40 cliffDuration_) internal {
+        if (cliffDuration <= 0) revert Exercise__CliffDurationCannotBeZero();
         if (cliffDuration_ > totalDuration) revert Exercise__InvalidCliffDuration(cliffDuration_);
         cliffDuration = cliffDuration_;
     }
 
     function setTotalDuration(uint40 totalDuration_) external onlyOwner {
+        _setTotalDuration(totalDuration_);
+    }
+
+    function _setTotalDuration(uint40 totalDuration_) internal {
+        if (cliffDuration <= 0) revert Exercise__TotalDurationCannotBeZero();
         if (totalDuration_ < cliffDuration) revert Exercise__InvalidTotalDuration(totalDuration_);
         totalDuration = totalDuration_;
     }
