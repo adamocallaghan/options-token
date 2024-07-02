@@ -11,11 +11,10 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
 
-
 /// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
-/// in this case, by purchasing the underlying token at a discount to the market price 
+/// in this case, by purchasing the underlying token at a discount to the market price
 /// and vested/released exponentially over a set period of time per account.
 /// @dev Assumes the underlying token and the payment token both use 18 decimals.
 contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
@@ -23,7 +22,7 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     using SafeERC20 for IERC20;
     using FixedPointMathLib for uint256;
 
-    /// Errors /// 
+    /// Errors ///
     error Exercise__RequestedAmountTooHigh();
     error Exercise__VestHasNotStarted();
     error Exercise__MultiplierOutOfRange();
@@ -69,10 +68,6 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
 
-    /// @notice The amount of payment tokens the user can claim
-    /// Used when the contract does not have enough tokens to pay the user
-    mapping (address => uint256) public credit;
-
     //@todo add checks for vesting times
     constructor(
         OptionsToken oToken_,
@@ -108,20 +103,11 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
-        onlyOToken 
+        onlyOToken
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
         return _exercise(from, amount, recipient, params);
     }
-
-    /// @notice Claims the tokens for a user creating a new stream  
-    function claim(address to) external returns (uint256 streamId) {
-        uint256 amount = credit[msg.sender];
-        if (amount == 0) revert Exercise__NothingToClaim();
-        credit[msg.sender] = 0;
-        (, streamId) = _createExponentialStream(to, amount);
-    }
-
 
     ///////////////////////
     /// Owner functions ///
@@ -135,8 +121,9 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     function _setOracle(IOracle oracle_) internal {
         (address paymentToken_, address underlyingToken_) = oracle_.getTokens();
-        if (paymentToken_ != address(paymentToken) || underlyingToken_ != address(underlyingToken))
+        if (paymentToken_ != address(paymentToken) || underlyingToken_ != address(underlyingToken)) {
             revert Exercise__InvalidOracle();
+        }
         oracle = oracle_;
         emit SetOracle(oracle_);
     }
@@ -156,16 +143,15 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetMultiplier(multiplier_);
     }
 
-
     //////////////////////////
     /// Internal functions ///
     //////////////////////////
 
     function _exercise(address from, uint256 amount, address recipient, bytes memory params)
         internal
+        contractHasTokens(amount)
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
-
         // apply multiplier to price
         paymentAmount = getPaymentAmount(amount);
 
@@ -174,14 +160,14 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
 
         // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
         distributeFeesFrom(paymentAmount, paymentToken, from);
-        
+
         // create the token stream
-        ( , streamId) = _createExponentialStream(recipient, amount);
+        (, streamId) = _createExponentialStream(recipient, amount);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }
 
-    function _createExponentialStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) { 
+    function _createExponentialStream(address to, uint256 amount) internal returns (uint256 remainingAmount, uint256 streamId) {
         uint256 balance = underlyingToken.balanceOf(address(this));
         if (amount > balance) {
             streamId = createExponentialStream(balance, address(underlyingToken), to);
@@ -202,4 +188,10 @@ contract ExponentialVestedTokenExercise is BaseExercise, SablierStreamCreator {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
 
+    modifier contractHasTokens(uint256 amount) {
+        if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
+            revert Error__ContractOutOfTokens();
+        }
+        _;
+    }
 }

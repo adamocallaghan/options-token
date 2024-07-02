@@ -77,10 +77,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// @notice The length of time it takes for the vested tokens to be fully released - this is the totalDuration
     uint40 public totalDuration;
 
-    /// @notice The amount of payment tokens the user can claim
-    /// Used when the contract does not have enough tokens to pay the user
-    mapping(address => uint256) public credit;
-
     //@todo add checks for vesting times
     constructor(
         OptionsToken oToken_,
