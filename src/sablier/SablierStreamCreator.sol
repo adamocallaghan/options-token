@@ -20,6 +20,9 @@ abstract contract SablierStreamCreator {
     //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
 
     constructor(address lockupLinear_, address lockupDynamic_) {
+        if(lockupLinear_ == address(0) || lockupDynamic_ == address(0)) {
+            revert("SablierStreamCreator: cannot set zero address");
+        }
         LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
         LOCKUP_DYNAMIC = ISablierV2LockupDynamic(lockupDynamic_);
     }
@@ -54,34 +57,9 @@ abstract contract SablierStreamCreator {
 
         // Create the LockupLinear stream using a function that sets the start time to `block.timestamp`
         streamId = LOCKUP_LINEAR.createWithDurations(params);
+
+        IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
-
-    function createExponentialStream(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
-       
-        // Approve the Sablier contract to spend DAI
-        IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
-
-        // Declare the params struct
-        LockupDynamic.CreateWithDeltas memory params;
-
-        // Declare the function parameters
-        params.sender = address(this); // The sender will be able to cancel the stream
-        params.recipient = recipient_; // The recipient of the streamed assets
-        params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
-        params.asset = IERC20(token_); // The streaming asset
-        params.cancelable = true; // Whether the stream will be cancelable or not
-        params.transferable = true; // Whether the stream will be transferable or not
-        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-
-        // Declare a single-size segment to match the curve shape
-        params.segments = new LockupDynamic.SegmentWithDelta[](1);
-        params.segments[0] =
-            LockupDynamic.SegmentWithDelta({ amount: amount_.toUint128(), delta: 100 days, exponent: ud2x18(6e18) });
-
-        // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
-    }
-
 
     function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.SegmentWithDelta[] calldata segments_) internal returns (uint256 streamId) {
        
@@ -103,10 +81,42 @@ abstract contract SablierStreamCreator {
 
         // Create the LockupDynamic stream
         streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+
+        IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
     //@note can't pass an array of udx218 types @adam - I'm thinking this is the function exercise contract can implement to build their custom shapes
     function setSegments(uint128[] calldata amounts_, uint256[] calldata exponents_, uint40[] calldata deltas_) public virtual returns (LockupDynamic.SegmentWithDelta[] memory){}
    
-    
+
+
+    // Use this as an example for how to create a exponential stream - with custom segments we can create any type or stream we want.
+
+    // function createExponentialStream(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
+       
+    //     // Approve the Sablier contract to spend DAI
+    //     IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
+
+    //     // Declare the params struct
+    //     LockupDynamic.CreateWithDeltas memory params;
+
+    //     // Declare the function parameters
+    //     params.sender = address(this); // The sender will be able to cancel the stream
+    //     params.recipient = recipient_; // The recipient of the streamed assets
+    //     params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
+    //     params.asset = IERC20(token_); // The streaming asset
+    //     params.cancelable = true; // Whether the stream will be cancelable or not
+    //     params.transferable = true; // Whether the stream will be transferable or not
+    //     params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
+
+    //     // Declare a single-size segment to match the curve shape
+    //     params.segments = new LockupDynamic.SegmentWithDelta[](1);
+    //     params.segments[0] =
+    //         LockupDynamic.SegmentWithDelta({ amount: amount_.toUint128(), delta: 100 days, exponent: ud2x18(6e18) });
+
+    //     // Create the LockupDynamic stream
+    //     streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+    // }
+
+
 }

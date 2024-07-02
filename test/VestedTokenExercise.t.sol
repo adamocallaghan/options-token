@@ -89,9 +89,6 @@ contract VestedTokenExerciseTest is Test {
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
-        blockNumBeforeFork = block.number;
-       // vm.rollFork(block.number - BLOCKS_IN_30_DAYS);
-        //vm.selectFork(bscFork);
 
         // set up accounts and fee recipients
         owner = makeAddr("owner"); 
@@ -118,10 +115,6 @@ contract VestedTokenExerciseTest is Test {
         optionsToken = OptionsToken(address(proxy));
         optionsToken.initialize("XYZ Vested Option Token", "ovXYZ", tokenAdmin);
         optionsToken.transferOwnership(owner);
-
-        // address[] memory tokens = new address[](2);
-        // tokens[0] = address(paymentToken);
-        // tokens[1] = address(underlyingToken);
 
         // set up the thena oracle parameters
         _default = Params(IThenaPair(POOL_ADDRESS), UNDERLYING_TOKEN_ADDRESS, address(this), 30 minutes, 1000);
@@ -151,24 +144,18 @@ contract VestedTokenExerciseTest is Test {
         assertEq(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, "exerciser not funded");
 
         // add exerciser to the list of options
-        vm.startPrank(owner);
+        vm.prank(owner);
         optionsToken.setExerciseContract(address(exerciser), true);
-        vm.stopPrank();
 
-        vm.startPrank(user);
+        vm.prank(user);
         paymentToken.approve(address(exerciser), type(uint256).max); // exerciser contract can spend all payment tokens
-       // IERC20(UNDERLYING_TOKEN_ADDRESS).approve(address(exerciser), type(uint256).max); // exerciser contract can spend all the monies
-        vm.stopPrank();
     }
 
     function test_setUp() public {
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, 18);
-        console.log("block #: ", block.number);
-        assertEq(block.number, (blockNumBeforeFork - BLOCKS_IN_30_DAYS), "fork not started");
-
-        // assertEq(address(underlyingToken), UNDERLYING_TOKEN_ADDRESS);
-        // assertEq(address(paymentToken), PAYMENT_TOKEN_ADDRESS);
-        // assertEq(address(optionsToken.owner()), owner);
+        assertEq(address(underlyingToken), UNDERLYING_TOKEN_ADDRESS);
+        assertEq(address(paymentToken), PAYMENT_TOKEN_ADDRESS);
+        assertEq(address(optionsToken.owner()), owner);
     }
 
     function test_getPrice() public {
@@ -315,6 +302,8 @@ contract VestedTokenExerciseTest is Test {
 
         // verify underlying tokens were transferred from exerciser
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e38 - amount, 18, "exerciser still has underlying tokens");
+
+        assertEq(underlyingToken.allowance(address(exerciser), address(sablierLinear)), 0, "sablier still has allowance of tokens from ecerciser");
     }
     
 
