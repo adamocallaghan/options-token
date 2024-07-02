@@ -269,6 +269,18 @@ contract LockedLPExerciseTest is Test {
         assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
     }
 
+    function test_Sablier_UserCannotWithdrawTokensBeforeUnlockDate(uint256 amount, uint256 multiplier) public {
+        address recipient = makeAddr("recipient");
+
+        // exercise tokens with lock
+        (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+
+        // withdraw tokens immediately, before unlock date
+        vm.prank(recipient);
+        vm.expectRevert();
+        LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: recipient});
+    }
+
     function test_Sablier_StreamIsNotDepleted_BeforeBlockWarped(uint256 amount, uint256 multiplier) public {
         (,,, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
         bool streamDepletionStatus = LOCKUP_LINEAR.isDepleted(streamId);
@@ -285,6 +297,29 @@ contract LockedLPExerciseTest is Test {
     // ===========================
     // == Exercise Revert tests ==
     // ===========================
+
+    function test_Exercise_RevertsIfMultiplierTooLow(uint256 amount, uint256 multiplier) public {
+        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
+        multiplier = bound(multiplier, 0, maxMultiplier - 1);
+
+        address recipient = makeAddr("recipient");
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // mint payment tokens
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
+
+        // exercise options tokens, create LP, and lock in Sablier
+        LockedExerciseParams memory params =
+            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: multiplier});
+
+        vm.expectRevert(LockedExercise.Exercise__InvalidMultiplier.selector);
+        (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
+            optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
 
     // ==========================
     // == Liquidity Pool tests ==

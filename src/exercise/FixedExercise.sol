@@ -31,6 +31,8 @@ contract FixedExercise is BaseExercise {
     error Exercise__MultiplierOutOfRange();
     error Exercise__ExerciseWindowNotOpen();
     error Exercise__ExerciseWindowClosed();
+    error Exercise__StartTimeIsInThePast();
+    error Exercise__EndTimeIsBeforeStartTime();
 
     /// Events
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -87,10 +89,10 @@ contract FixedExercise is BaseExercise {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
-        price = price_;
         startTime = startTime_;
         endTime = endTime_;
 
+        _setPrice(price_);
         _setMultiplier(multiplier_);
 
         emit SetPriceAndTimeWindow(price, startTime, endTime);
@@ -145,6 +147,22 @@ contract FixedExercise is BaseExercise {
     function _setPrice(uint256 price_) internal {
         price = price_;
         emit SetPrice(price);
+    }
+
+    function setTimes(uint256 startTime_, uint256 endTime_) external onlyOwner {
+        _setTimes(startTime_, endTime_);
+    }
+
+    function _setTimes(uint256 startTime_, uint256 endTime_) internal {
+        // checks
+        if (startTime_ < block.timestamp) {
+            revert Exercise__StartTimeIsInThePast();
+        }
+        if (endTime_ <= startTime_) {
+            revert Exercise__EndTimeIsBeforeStartTime();
+        }
+        startTime = startTime_;
+        endTime = endTime_;
     }
 
     /// Internal functions
