@@ -95,8 +95,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
-        _setCliffDuration(cliffDuration_);
         _setTotalDuration(totalDuration_);
+        _setCliffDuration(cliffDuration_);
         _setOracle(oracle_);
         _setMultiplier(multiplier_);
 
@@ -112,7 +112,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         }
         _;
     }
-    
+
     //////////////////////////
     /// External functions ///
     //////////////////////////
@@ -171,7 +171,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     }
 
     function _setCliffDuration(uint40 cliffDuration_) internal {
-        if (cliffDuration <= 0) revert Exercise__CliffDurationCannotBeZero();
         if (cliffDuration_ > totalDuration) revert Exercise__InvalidCliffDuration(cliffDuration_);
         cliffDuration = cliffDuration_;
     }
@@ -181,8 +180,8 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     }
 
     function _setTotalDuration(uint40 totalDuration_) internal {
-        if (cliffDuration <= 0) revert Exercise__TotalDurationCannotBeZero();
-        if (totalDuration_ < cliffDuration) revert Exercise__InvalidTotalDuration(totalDuration_);
+        if (totalDuration_ < uint40(1)) revert Exercise__TotalDurationCannotBeZero();
+        if (totalDuration_ <= cliffDuration) revert Exercise__InvalidTotalDuration(totalDuration_);
         totalDuration = totalDuration_;
     }
 
@@ -205,7 +204,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         distributeFeesFrom(paymentAmount, paymentToken, from);
 
         // create the token stream
-        (streamId) = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), to);
+        (streamId) = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), recipient);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }

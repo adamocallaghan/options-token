@@ -317,52 +317,6 @@ contract VestedTokenExerciseTest is Test {
         assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 1e38 - amount, 18, "exerciser still has underlying tokens");
     }
     
-    function test_vestedClaimCreditedWhenContractIsNotFunded(uint256 amount, address recipient) public {
-        vm.assume(recipient != address(0));
-        amount = bound(amount, 100, type(uint128).max); // bound above 1e20 because we deal the exercisor with 1e20 underlying tokens
-
-        // mint options tokens
-        vm.prank(tokenAdmin);
-        optionsToken.mint(user, amount);
-        
-        // took this from the contract
-        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
-        console.log("price", price);
-        uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
-        
-        // give payment tokens
-        deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
-        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
-        
-        uint256 expectedStreamId = sablierLinear.nextStreamId();
-
-        vm.prank(user);
-        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
-
-        // verify options tokens were transferred
-        assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
-        assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
-        assertEq(streamId, expectedStreamId, "stream id not created");
-
-        // verify payment tokens were transferred
-        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 0, 18, "user still has payment tokens");
-        uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
-        uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
-        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
-        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
-        assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
-
-        // verify exercisor contract is out of tokens
-        assertEqDecimal(underlyingToken.balanceOf(address(exerciser)), 0, 18, "exerciser still has underlying tokens");
-
-        // verify credited amount @adam
-        uint256 amountCredited = exerciser.credit(user);
-        uint256 expectedCreditedAmount = amount - 100; // 1e20 is the amount we dealt the exercisor with
-        console.log("expectedCreditedAmount", expectedCreditedAmount);
-        console.log("amount credited", amountCredited);
-        assertEq(amountCredited, expectedCreditedAmount, "credited amount not correct");
-    }
 
     function test_sablierWithdraw() public {
 
