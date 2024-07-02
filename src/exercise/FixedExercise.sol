@@ -89,13 +89,9 @@ contract FixedExercise is BaseExercise {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
-        startTime = startTime_;
-        endTime = endTime_;
-
+        _setTimes(startTime_, endTime_);
         _setPrice(price_);
         _setMultiplier(multiplier_);
-
-        emit SetPriceAndTimeWindow(price, startTime, endTime);
     }
 
     /// External functions
