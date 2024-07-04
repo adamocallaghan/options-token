@@ -77,7 +77,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     //     uint40 milestone;
     // }
 
-    LockupDynamic.Segment[] public segments;
+    // LockupDynamic.Segment[] public segments;
 
     //@todo add checks for vesting times
     constructor(
@@ -134,23 +134,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     ///////////////////////
     /// Owner functions ///
     ///////////////////////
-    ///@notice Sets the shape of the vesting curve for the underlying tokens.
-    // function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) external onlyOwner override returns (LockupDynamic.Segment[] memory){
-    //     if(amounts_.length != exponents_.length || amounts_.length != milestones_.length || milestones_.length != exponents_.length)
-    //     {
-    //         revert Exercise__InvalidSegments();
-    //     }
-
-    //     segments = new LockupDynamic.Segment[](amounts_.length);
-    //     for (uint256 i = 0; i < amounts_.length; i++) {
-    //         segments[i] = LockupDynamic.Segment({
-    //             amount: amounts_[i],
-    //             exponent: ud2x18(exponents_[i]),
-    //             milestone: milestones_[i]
-    //         });
-    //     }
-    //     return segments;
-    // }
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -199,6 +182,17 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
 
         // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
         distributeFeesFrom(paymentAmount, paymentToken, from);
+        uint128 halfOfAmount = uint128(amount / 2);
+
+        // ============================
+        // === CREATE SEGMENT ARRAY ===
+        // ============================
+        uint128[2] memory amounts = [halfOfAmount, halfOfAmount];
+        uint64[2] memory exponents = [1e18, 3e18];
+        uint40[2] memory milestones = [uint40(block.timestamp + 1 days), uint40(block.timestamp + 20 days)];
+
+        // uses the internal _getSegments function on SablierStreamCreateor base contract
+        LockupDynamic.Segment[] memory segments = _getSegments(amounts, exponents, milestones);
 
         // create the token stream
         streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient, segments);

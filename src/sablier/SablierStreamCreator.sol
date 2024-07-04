@@ -87,13 +87,28 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    //@note can't pass an array of udx218 types @adam - I'm thinking this is the function exercise contract can implement to build their custom shapes
     ///@param amounts_ The amount of assets to be streamed in this segment, denoted in units of the asset's decimals.
     ///@param exponents_ The exponent of this segment, denoted as a fixed-point number. ex. ud2x18(6e18)
     ///@param milestones_ The Unix timestamp indicating this segment's end.
     function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_)
         public
         virtual
+        returns (LockupDynamic.Segment[] memory)
+    {
+        // LockupDynamic.SegmentWithDelta[](amounts_.length-1) segments;
+        LockupDynamic.Segment[] memory segments;
+
+        for (uint256 i = 0; i < amounts_.length; i++) {
+            segments[i] = LockupDynamic.Segment({amount: amounts_[i], exponent: ud2x18(exponents_[i]), milestone: uint40(milestones_[i])});
+        }
+
+        return segments;
+    }
+
+    /// @note ok, so we can't use this as-is due to their being a set size to these memory arrays
+    /// I just have this put in to make the contracts compile and test if it works
+    function _getSegments(uint128[2] memory amounts_, uint64[2] memory exponents_, uint40[2] memory milestones_)
+        internal
         returns (LockupDynamic.Segment[] memory)
     {
         // LockupDynamic.SegmentWithDelta[](amounts_.length-1) segments;
