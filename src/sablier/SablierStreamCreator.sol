@@ -13,14 +13,15 @@ import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/Da
 abstract contract SablierStreamCreator {
     using SafeCast for uint256;
     //@note  maybe we need to move this to the exercise contract??
-    ISablierV2LockupLinear public immutable LOCKUP_LINEAR; 
+
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR;
     //Mainnet Addr ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
 
-    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC; 
+    ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC;
     //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
 
     constructor(address lockupLinear_, address lockupDynamic_) {
-        if(lockupLinear_ == address(0) || lockupDynamic_ == address(0)) {
+        if (lockupLinear_ == address(0) || lockupDynamic_ == address(0)) {
             revert("SablierStreamCreator: cannot set zero address");
         }
         LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
@@ -36,7 +37,6 @@ abstract contract SablierStreamCreator {
         virtual
         returns (uint256 streamId)
     {
-
         // Approve the Sablier contract to pull the tokens from this contract
         IERC20(token_).approve(address(LOCKUP_LINEAR), amount_);
 
@@ -61,8 +61,10 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.Segment[] memory segments_) internal returns (uint256 streamId) {
-       
+    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.Segment[] memory segments_)
+        internal
+        returns (uint256 streamId)
+    {
         // Approve the Sablier contract to spend DAI
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
@@ -89,14 +91,25 @@ abstract contract SablierStreamCreator {
     ///@param amounts_ The amount of assets to be streamed in this segment, denoted in units of the asset's decimals.
     ///@param exponents_ The exponent of this segment, denoted as a fixed-point number. ex. ud2x18(6e18)
     ///@param milestones_ The Unix timestamp indicating this segment's end.
-    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) public virtual returns (LockupDynamic.Segment[] memory){}
-   
+    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_)
+        public
+        virtual
+        returns (LockupDynamic.Segment[] memory)
+    {
+        // LockupDynamic.SegmentWithDelta[](amounts_.length-1) segments;
+        LockupDynamic.Segment[] memory segments;
 
+        for (uint256 i = 0; i < amounts_.length; i++) {
+            segments[i] = LockupDynamic.Segment({amount: amounts_[i], exponent: ud2x18(exponents_[i]), milestone: uint40(milestones_[i])});
+        }
+
+        return segments;
+    }
 
     // Use this as an example for how to create a exponential stream - with custom segments we can create any type or stream we want.
 
     // function createExponentialStream(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
-       
+
     //     // Approve the Sablier contract to spend DAI
     //     IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
@@ -120,6 +133,4 @@ abstract contract SablierStreamCreator {
     //     // Create the LockupDynamic stream
     //     streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
     // }
-
-
 }

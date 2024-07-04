@@ -12,7 +12,6 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator, LockupDynamic} from "src/sablier/SablierStreamCreator.sol";
 
-
 /// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -105,7 +104,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     /////////////////
     /// Modifiers ///
     /////////////////
-    
+
     modifier contractHasTokens(uint256 amount) {
         if (IERC20(underlyingToken).balanceOf(address(this)) < amount) {
             revert Exercise__ContractOutOfTokens();
@@ -135,24 +134,23 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     ///////////////////////
     /// Owner functions ///
     ///////////////////////
-    ///@notice Sets the shape of the vesting curve for the underlying tokens. 
-    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) external onlyOwner override returns (LockupDynamic.Segment[] memory){
-        if(amounts_.length != exponents_.length || amounts_.length != milestones_.length || milestones_.length != exponents_.length)
-        { 
-            revert Exercise__InvalidSegments();
-        }
+    ///@notice Sets the shape of the vesting curve for the underlying tokens.
+    // function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_) external onlyOwner override returns (LockupDynamic.Segment[] memory){
+    //     if(amounts_.length != exponents_.length || amounts_.length != milestones_.length || milestones_.length != exponents_.length)
+    //     {
+    //         revert Exercise__InvalidSegments();
+    //     }
 
-        segments = new LockupDynamic.Segment[](amounts_.length);
-        for (uint256 i = 0; i < amounts_.length; i++) {
-            segments[i] = LockupDynamic.Segment({
-                amount: amounts_[i],
-                exponent: ud2x18(exponents_[i]),
-                milestone: milestones_[i]
-            });
-        }
-        return segments;
-    }
-
+    //     segments = new LockupDynamic.Segment[](amounts_.length);
+    //     for (uint256 i = 0; i < amounts_.length; i++) {
+    //         segments[i] = LockupDynamic.Segment({
+    //             amount: amounts_[i],
+    //             exponent: ud2x18(exponents_[i]),
+    //             milestone: milestones_[i]
+    //         });
+    //     }
+    //     return segments;
+    // }
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -208,7 +206,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         emit Exercised(from, recipient, amount, paymentAmount);
     }
 
-
     ////////////////////////
     /// Helper Functions ///
     ////////////////////////
@@ -218,5 +215,4 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
         paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     }
-
 }
