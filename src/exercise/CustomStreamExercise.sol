@@ -5,7 +5,7 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
-import {UD2x18} from "@prb/math/src/UD2x18.sol";
+import {ud2x18} from "@prb/math/src/UD2x18.sol";
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
@@ -34,12 +34,17 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     error Exercise__NothingToClaim();
     error Exercise__InvalidSegments();
     error Exercise__ContractOutOfTokens();
+    error Exercise__SegmentsNotSet();
 
+    //////////////
     /// Events ///
+    //////////////
+
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
     event SetOracle(IOracle indexed newOracle);
     event SetTreasury(address indexed newTreasury);
     event SetMultiplier(uint256 indexed newMultiplier);
+    event SegmentsSet(uint64[] exponents, uint40[] milestones);
 
     /////////////////
     /// Constants ///
@@ -52,7 +57,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     ////////////////////////////
     /// Immutable parameters ///
     ////////////////////////////
-    //@note constant vs immutable here?
     /// @notice The token paid by the options token holder during redemption
     IERC20 public immutable paymentToken;
 
@@ -83,6 +87,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
+        address sender_,
         address lockUpLinear_,
         address lockUpDynamic_,
         IERC20 paymentToken_,
@@ -91,7 +96,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         uint256 multiplier_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
@@ -121,19 +126,40 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     /// @param from The user that is exercising their options tokens
     /// @param amount The amount of options tokens to exercise
     /// @param recipient The recipient of the purchased underlying tokens
-    // @note don't need params - leave empty
+    // @note don't need params - leave empty - can params be Segments passed by the user?
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
         onlyOToken
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
+        if(segmentExponents.length == 0 || segmentDeltas.length == 0) {
+            revert Exercise__SegmentsNotSet();
+        }
         return _exercise(from, amount, recipient, params);
     }
 
     ///////////////////////
     /// Owner functions ///
     ///////////////////////
+
+    function setSegments(uint64[] calldata exponents_, uint40[] calldata deltas_) external override onlyOwner {
+        if (deltas_.length != exponents_.length) {
+            revert Exercise__InvalidSegments();
+        }
+        // Clear the current arrays to resize
+        delete segmentExponents;
+        delete segmentDeltas;
+
+        // Initialize the arrays with the correct length
+        for (uint256 i = 0; i < exponents_.length; i++) {
+            segmentExponents.push(exponents_[i]);
+            segmentDeltas.push(deltas_[i]);
+        }
+
+        emit SegmentsSet(exponents_, deltas_);
+
+    }
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
@@ -182,20 +208,9 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
 
         // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
         distributeFeesFrom(paymentAmount, paymentToken, from);
-        uint128 halfOfAmount = uint128(amount / 2);
-
-        // ============================
-        // === CREATE SEGMENT ARRAY ===
-        // ============================
-        uint128[2] memory amounts = [halfOfAmount, halfOfAmount];
-        uint64[2] memory exponents = [1e18, 3e18];
-        uint40[2] memory milestones = [uint40(block.timestamp + 1 days), uint40(block.timestamp + 20 days)];
-
-        // uses the internal _getSegments function on SablierStreamCreateor base contract
-        LockupDynamic.Segment[] memory segments = _getSegments(amounts, exponents, milestones);
 
         // create the token stream
-        streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient, segments);
+        streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient);
 
         emit Exercised(from, recipient, amount, paymentAmount);
     }

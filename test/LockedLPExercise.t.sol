@@ -65,6 +65,7 @@ contract LockedLPExerciseTest is Test {
     // EOA vars
     address owner;
     address tokenAdmin;
+    address sender;
 
     // fee vars
     address[] feeRecipients_;
@@ -124,6 +125,7 @@ contract LockedLPExerciseTest is Test {
         exerciser = new LockedExercise(
             optionsToken,
             owner,
+            sender,
             address(LOCKUP_LINEAR),
             address(SABLIER_DYNAMIC_ADDRESS),
             IERC20(PAYMENT_TOKEN_ADDRESS),

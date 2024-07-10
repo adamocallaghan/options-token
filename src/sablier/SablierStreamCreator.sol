@@ -12,18 +12,20 @@ import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/Da
 
 abstract contract SablierStreamCreator {
     using SafeCast for uint256;
-    //@note  maybe we need to move this to the exercise contract??
 
+    address public immutable SENDER;
     ISablierV2LockupLinear public immutable LOCKUP_LINEAR;
-    //Mainnet Addr ISablierV2LockupLinear(0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9);
-
     ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC;
-    //Mainnet Addr ISablierV2LockupDynamic(0x7CC7e125d83A581ff438608490Cc0f7bDff79127);
+    
+    //@note would want to initialize these in the constructor
+    uint64[] public segmentExponents;
+    uint40[] public segmentDeltas;
 
-    constructor(address lockupLinear_, address lockupDynamic_) {
-        if (lockupLinear_ == address(0) || lockupDynamic_ == address(0)) {
+    constructor(address sender_, address lockupLinear_, address lockupDynamic_) {
+        if (lockupLinear_ == address(0) || lockupDynamic_ == address(0) || sender_ == address(0)) {
             revert("SablierStreamCreator: cannot set zero address");
         }
+        SENDER = sender_;
         LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
         LOCKUP_DYNAMIC = ISablierV2LockupDynamic(lockupDynamic_);
     }
@@ -38,11 +40,11 @@ abstract contract SablierStreamCreator {
         returns (uint256 streamId)
     {
         // Approve the Sablier contract to pull the tokens from this contract
-        IERC20(token_).approve(address(LOCKUP_LINEAR), amount_);
+        IERC20(token_).approve(address(LOCKUP_LINEAR), amount_); //@note do we need this if sender is SENDER now?
 
         LockupLinear.CreateWithDurations memory params;
         // Declare the function parameters
-        params.sender = address(this); // The sender will be able to cancel the stream
+        params.sender = SENDER; // The sender will be able to cancel the stream
         params.recipient = recipient_; // The recipient of the streamed assets
         params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
         params.asset = IERC20(token_); // The streaming asset
@@ -61,7 +63,7 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_, LockupDynamic.Segment[] memory segments_)
+    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_)
         internal
         returns (uint256 streamId)
     {
@@ -69,57 +71,48 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
         // Declare the params struct
-        LockupDynamic.CreateWithMilestones memory params;
+        LockupDynamic.CreateWithDeltas memory params;
 
         // Declare the function parameters
-        params.sender = address(this); // The sender will be able to cancel the stream
+        params.sender = SENDER; // The sender will be able to cancel the stream
         params.recipient = recipient_; // The recipient of the streamed assets
         params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
         params.asset = IERC20(token_); // The streaming asset
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not
         params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-        params.segments = segments_;
+        params.segments = _constructSegmentWithDelta(amount_); 
 
         // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithMilestones(params);
+        streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
 
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    ///@param amounts_ The amount of assets to be streamed in this segment, denoted in units of the asset's decimals.
     ///@param exponents_ The exponent of this segment, denoted as a fixed-point number. ex. ud2x18(6e18)
-    ///@param milestones_ The Unix timestamp indicating this segment's end.
-    function setSegments(uint128[] calldata amounts_, uint64[] calldata exponents_, uint40[] calldata milestones_)
-        public
-        virtual
-        returns (LockupDynamic.Segment[] memory)
-    {
-        // LockupDynamic.SegmentWithDelta[](amounts_.length-1) segments;
-        LockupDynamic.Segment[] memory segments;
+    ///@param deltas_ The time in seconds of when each segment ends
+    function setSegments(uint64[] calldata exponents_, uint40[] calldata deltas_) external virtual {}
 
-        for (uint256 i = 0; i < amounts_.length; i++) {
-            segments[i] = LockupDynamic.Segment({amount: amounts_[i], exponent: ud2x18(exponents_[i]), milestone: uint40(milestones_[i])});
+
+    function _constructSegmentWithDelta(uint256 amount_) internal view returns (LockupDynamic.SegmentWithDelta[] memory) {
+        uint256 amountPerSegment = amount_ / segmentExponents.length;
+
+        LockupDynamic.SegmentWithDelta[] memory segments = new LockupDynamic.SegmentWithDelta[](segmentExponents.length);
+        for (uint256 i = 0; i < segmentExponents.length; i++) {
+            segments[i] = LockupDynamic.SegmentWithDelta({
+                amount: amountPerSegment.toUint128(),
+                delta: segmentDeltas[i],
+                exponent: ud2x18(segmentExponents[i])
+            });
         }
-
         return segments;
     }
 
-    /// @note ok, so we can't use this as-is due to their being a set size to these memory arrays
-    /// I just have this put in to make the contracts compile and test if it works
-    function _getSegments(uint128[2] memory amounts_, uint64[2] memory exponents_, uint40[2] memory milestones_)
-        internal
-        returns (LockupDynamic.Segment[] memory)
-    {
-        // LockupDynamic.SegmentWithDelta[](amounts_.length-1) segments;
-        LockupDynamic.Segment[] memory segments;
 
-        for (uint256 i = 0; i < amounts_.length; i++) {
-            segments[i] = LockupDynamic.Segment({amount: amounts_[i], exponent: ud2x18(exponents_[i]), milestone: uint40(milestones_[i])});
-        }
 
-        return segments;
-    }
+
+
+
 
     // Use this as an example for how to create a exponential stream - with custom segments we can create any type or stream we want.
 

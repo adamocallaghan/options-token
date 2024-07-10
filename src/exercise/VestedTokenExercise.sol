@@ -81,6 +81,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
+        address sender_,
         address lockUpLinear_,
         address lockUpDynamic_,
         IERC20 paymentToken_,
@@ -91,7 +92,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         uint40 totalDuration_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(lockUpLinear_, lockUpDynamic_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 

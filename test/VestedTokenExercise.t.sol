@@ -62,6 +62,7 @@ contract VestedTokenExerciseTest is Test {
     address owner;
     address tokenAdmin;
     address user;
+    address sender;
 
     // Fee Vars
     address[] feeRecipients_;
@@ -128,6 +129,7 @@ contract VestedTokenExerciseTest is Test {
         exerciser = new VestedTokenExercise(
             optionsToken,
             owner,
+            sender,
             SABLIER_LINEAR_ADDRESS,
             SABLIER_DYNAMIC_ADDRESS,
             paymentToken,

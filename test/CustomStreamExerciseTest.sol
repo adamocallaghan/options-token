@@ -55,6 +55,7 @@ contract CustomStreamExerciseTest is Test {
     address owner;
     address tokenAdmin;
     address user;
+    address sender;
 
     // Fee Vars
     address[] feeRecipients_;
@@ -78,10 +79,13 @@ contract CustomStreamExerciseTest is Test {
         //vm.selectFork(bscFork);
 
         // set up accounts and fee recipients
+        //@note not sure if deal's are necessary 
         owner = makeAddr("owner");
         vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
         vm.deal(tokenAdmin, 1 ether);
+        sender = makeAddr("sender"); //sender of the token stream
+        vm.deal(sender, 1 ether);
         user = makeAddr("user");
         vm.deal(user, 1 ether);
 
@@ -114,6 +118,7 @@ contract CustomStreamExerciseTest is Test {
         exerciser = new CustomStreamExercise(
             optionsToken,
             owner,
+            sender,
             SABLIER_LINEAR_ADDRESS,
             SABLIER_DYNAMIC_ADDRESS,
             paymentToken,
@@ -124,8 +129,8 @@ contract CustomStreamExerciseTest is Test {
             feeBPS_
         );
 
-        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
-        assertEq(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, "exerciser not funded");
+        deal(UNDERLYING_TOKEN_ADDRESS, sender, 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
+        assertEq(underlyingToken.balanceOf(address(sender)), 1e20 ether, "sender not funded");
 
         // add exerciser to the list of options
         vm.startPrank(owner);
@@ -173,5 +178,48 @@ contract CustomStreamExerciseTest is Test {
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+    }
+
+    function test_onlyOwnerCanSetSegments() public {
+
+        vm.startPrank(user);
+        vm.expectRevert("UNAUTHORIZED");
+        exerciser.setSegments(new uint64[](4), new uint40[](4));
+        vm.stopPrank();
+
+        uint64[] memory exponents = new uint64[](4);
+        uint40[] memory deltas = new uint40[](4);
+        
+        deltas[0] = 1;
+        deltas[1] = 2;
+        deltas[2] = 3;
+        deltas[3] = 4;
+
+        exponents[0] = 1;
+        exponents[1] = 2;
+        exponents[2] = 3;
+        exponents[3] = 4;
+
+        vm.prank(owner);
+        exerciser.setSegments(exponents, deltas);
+
+        uint256 expo1 = exerciser.segmentExponents(0);
+        uint256 expo2 = exerciser.segmentExponents(1);
+        uint256 expo3 = exerciser.segmentExponents(2);
+        uint256 expo4 = exerciser.segmentExponents(3);
+        uint256 delta1 = exerciser.segmentDeltas(0);
+        uint256 delta2 = exerciser.segmentDeltas(1);
+        uint256 delta3 = exerciser.segmentDeltas(2);
+        uint256 delta4 = exerciser.segmentDeltas(3);
+
+        assertEq(expo1, 1);
+        assertEq(expo2, 2);
+        assertEq(expo3, 3);
+        assertEq(expo4, 4);
+        assertEq(delta1, 1);
+        assertEq(delta2, 2);
+        assertEq(delta3, 3);
+        assertEq(delta4, 4);
+
     }
 }
