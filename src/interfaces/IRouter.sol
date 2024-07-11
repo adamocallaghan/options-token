@@ -25,4 +25,19 @@ interface IRouter {
     ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
     function isPair(address pair) external view returns (bool);
     function getReserves(address tokenA, address tokenB, bool stable) external view returns (uint256 reserveA, uint256 reserveB);
+    function quoteRemoveLiquidity(address tokenA, address tokenB, bool stable, uint256 liquidity)
+        external
+        view
+        returns (uint256 amountA, uint256 amountB);
+
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        bool stable,
+        uint liquidity,
+        uint amountAMin,
+        uint amountBMin,
+        address to,
+        uint deadline
+    ) public ensure(deadline) returns (uint amountA, uint amountB)
 }

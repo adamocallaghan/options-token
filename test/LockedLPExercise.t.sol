@@ -223,7 +223,7 @@ contract LockedLPExerciseTest is Test {
     // == Sablier tests ==
     // ===================
 
-    function test_Sablier_ExerciseContractIsSetAsSender(uint256 amount, uint256 multiplier) public {
+    function test_Sablier_CorrectSenderIsSetOnSablierStream(uint256 amount, uint256 multiplier) public {
         // exercise tokens with lock
         (,,, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
 
@@ -254,9 +254,7 @@ contract LockedLPExerciseTest is Test {
         (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
 
         // get stream information following lock
-        // LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
         uint128 streamBalance = LOCKUP_LINEAR.getDepositedAmount(streamId);
-        // address streamRecipient = LOCKUP_LINEAR.getRecipient(streamId);
 
         // warp the block past the unlock date
         vm.warp(block.timestamp + lockDuration + 200 seconds);
@@ -268,7 +266,6 @@ contract LockedLPExerciseTest is Test {
         // user balance after withdrawal
         uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(recipient);
 
-        // assertEq(msg.sender, streamRecipient);
         assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
     }
 
@@ -324,9 +321,49 @@ contract LockedLPExerciseTest is Test {
             optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
 
+    function test_Exercise_RevertsIfMultiplierTooHigh(uint256 amount, uint256 multiplier) public {
+        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
+        multiplier = bound(multiplier, minMultiplier + 1, type(uint256).max);
+
+        address recipient = makeAddr("recipient");
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // mint payment tokens
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
+
+        // exercise options tokens, create LP, and lock in Sablier
+        LockedExerciseParams memory params =
+            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: multiplier});
+
+        vm.expectRevert(LockedExercise.Exercise__InvalidMultiplier.selector);
+        (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
+            optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
+
     // ==========================
     // == Liquidity Pool tests ==
     // ==========================
+
+    function test_LiquidityPool_UserCanBreakLpApartFollowingWithdrawalFromStream(uint256 amount, uint256 multiplier) public {
+        // @todo create a function for the following as it's required for multiple tests
+        // Exercise Tokens -> Lock LP -> Warp-Time-Past-Unlock -> Withdraw LP tokens
+        address recipient = makeAddr("recipient");
+        (, address lpTokenAddress, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
+        uint128 streamBalance = LOCKUP_LINEAR.getDepositedAmount(streamId);
+        vm.warp(block.timestamp + lockDuration + 200 seconds);
+        vm.prank(recipient);
+        LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: recipient});
+        uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(recipient);
+
+        // check that user can withdraw underlying and payment tokens from LP using LP tokens
+
+        // assert that the underlying tokens & payment tokens are correct and that amounts are correct
+        // assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
+    }
 
     // ==================
     // == ORACLE TESTS ==
