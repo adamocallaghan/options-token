@@ -9,15 +9,12 @@ import {SablierStreamCreator} from "../src/sablier/SablierStreamCreator.sol";
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 
-
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
-import { ISablierV2Lockup } from "@sablier/v2-core/src/interfaces/ISablierV2Lockup.sol";
+import {ISablierV2Lockup} from "@sablier/v2-core/src/interfaces/ISablierV2Lockup.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
-
-
 
 struct Params {
     IThenaPair pair;
@@ -41,13 +38,13 @@ contract VestedTokenExerciseTest is Test {
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); 
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2);
     address public constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
 
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-    //uint256 currentBlock = block.number; 
+    //uint256 currentBlock = block.number;
     uint256 constant BLOCKS_IN_30_DAYS = 864000; // 30 days * 24 hours * 60 minutes * 60 seconds / 3 seconds per block
     //uint256 forkTestStartBlock = currentBlock - BLOCKS_IN_30_DAYS;
 
@@ -79,25 +76,26 @@ contract VestedTokenExerciseTest is Test {
     ISablierV2Lockup internal sablierLockUp;
     ThenaOracle oracle;
     IERC20 paymentToken;
-    IERC20 underlyingToken;    
+    IERC20 underlyingToken;
 
     uint40 cliffDuration = 1 days;
     uint40 totalDuration = 30 days;
 
     uint256 blockNumBeforeFork;
 
-  
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
 
         // set up accounts and fee recipients
-        owner = makeAddr("owner"); 
-        vm.deal(owner, 1 ether); 
+        owner = makeAddr("owner");
+        vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
         vm.deal(tokenAdmin, 1 ether);
         user = makeAddr("user");
         vm.deal(user, 1 ether);
+
+        sender = makeAddr("sender");
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -108,8 +106,8 @@ contract VestedTokenExerciseTest is Test {
         feeBPS_[1] = 9000; // 90%
 
         // deploy contracts
-       paymentToken = IERC20(PAYMENT_TOKEN_ADDRESS);
-       underlyingToken =  IERC20(UNDERLYING_TOKEN_ADDRESS);
+        paymentToken = IERC20(PAYMENT_TOKEN_ADDRESS);
+        underlyingToken = IERC20(UNDERLYING_TOKEN_ADDRESS);
 
         address implementation = address(new OptionsToken());
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, "");
@@ -142,7 +140,7 @@ contract VestedTokenExerciseTest is Test {
             feeBPS_
         );
 
-        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption    
+        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
         assertEq(underlyingToken.balanceOf(address(exerciser)), 1e20 ether, "exerciser not funded");
 
         // add exerciser to the list of options
@@ -198,7 +196,6 @@ contract VestedTokenExerciseTest is Test {
         vm.expectRevert();
         exerciser.setTotalDuration(uint40(1111));
         vm.stopPrank();
-
     }
 
     function test_vestedOnlyOwnerCanChangeMultiplier(address hacker) public {
@@ -220,7 +217,7 @@ contract VestedTokenExerciseTest is Test {
         // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
+
         deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
 
@@ -243,7 +240,7 @@ contract VestedTokenExerciseTest is Test {
         // mint payment tokens
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
-        
+
         deal(PAYMENT_TOKEN_ADDRESS, address(this), expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(address(this)), expectedPaymentAmount, "user not funded");
 
@@ -263,30 +260,29 @@ contract VestedTokenExerciseTest is Test {
     //     vm.stopPrank();
     // }
 
-
     function test_exerciseAndCreateSablierLinearStream(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
-        amount = bound(amount, 100, 1e38); 
+        amount = bound(amount, 100, 1e38);
 
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(user, amount);
-        
+
         // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         console.log("price", price);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
         console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
-        
+
         // give payment tokens
         deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
-        
+
         uint256 expectedStreamId = sablierLinear.nextStreamId();
 
         vm.prank(user);
-        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
-        
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
         assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
@@ -307,10 +303,8 @@ contract VestedTokenExerciseTest is Test {
 
         assertEq(underlyingToken.allowance(address(exerciser), address(sablierLinear)), 0, "sablier still has allowance of tokens from ecerciser");
     }
-    
 
     function test_sablierWithdraw() public {
-
         address recipient = makeAddr("recipient");
         // mint options tokens
         vm.prank(tokenAdmin);
@@ -321,18 +315,18 @@ contract VestedTokenExerciseTest is Test {
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
 
         vm.prank(user);
-        (uint256 paymentAmount,,uint256 streamId,) = optionsToken.exercise(2e18, recipient, address(exerciser), "");
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(2e18, recipient, address(exerciser), "");
         console.log("block number when stream created: ", block.number);
 
         // test fail withdraw before cliff duration ends
         vm.prank(recipient);
         vm.expectRevert();
-        sablierLockUp.withdrawMax({ streamId: streamId, to: recipient });
-  
+        sablierLockUp.withdrawMax({streamId: streamId, to: recipient});
+
         vm.warp(block.timestamp + 3 days);
         uint256 withdrawableAmount = sablierLinear.withdrawableAmountOf(streamId);
         vm.prank(recipient);
-        sablierLinear.withdrawMax({ streamId: streamId, to: recipient });
+        sablierLinear.withdrawMax({streamId: streamId, to: recipient});
 
         uint256 withdrawnAmount = sablierLinear.getWithdrawnAmount(streamId);
         assertEq(withdrawableAmount, withdrawnAmount, "withdrawn amount not correct");
@@ -341,10 +335,8 @@ contract VestedTokenExerciseTest is Test {
         vm.warp(block.timestamp + 28 days); // wrap to end of stream and withdraw all
         uint256 totalDeposited = sablierLinear.getDepositedAmount(streamId);
         vm.prank(recipient);
-        sablierLinear.withdrawMax({ streamId: streamId, to: recipient });
+        sablierLinear.withdrawMax({streamId: streamId, to: recipient});
 
         assertEq(totalDeposited, underlyingToken.balanceOf(recipient), "Recipient balance not correct");
     }
-
-
 }

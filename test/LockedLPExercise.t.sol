@@ -101,6 +101,7 @@ contract LockedLPExerciseTest is Test {
         // set up accounts
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin");
+        sender = makeAddr("sender");
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -185,7 +186,7 @@ contract LockedLPExerciseTest is Test {
     // == Exercise Return Value tests ==
     // =================================
 
-    function test_returnedLpTokenAddressIsCorrect(uint256 amount, uint256 multiplier) public {
+    function test_Exercise_ReturnedLpTokenAddressIsCorrect(uint256 amount, uint256 multiplier) public {
         // returned token address
         (, address lpTokenAddressReturned,,) = exerciseWithMultiplier(amount, multiplier);
 
@@ -195,7 +196,7 @@ contract LockedLPExerciseTest is Test {
         assertEq(lpTokenAddressFromPair, lpTokenAddressReturned);
     }
 
-    function test_returnedLpLockDurationIsCorrect(uint256 amount, uint256 multiplier) public {
+    function test_Exercise_ReturnedLpLockDurationIsCorrect(uint256 amount, uint256 multiplier) public {
         multiplier = bound(multiplier, maxMultiplier, minMultiplier); // @note maxMult and minMult are reversed in bound here
         // returned token address
         (,, uint256 lockDurationReturned,) = exerciseWithMultiplier(amount, multiplier);
@@ -208,7 +209,7 @@ contract LockedLPExerciseTest is Test {
         assertEq(lockDurationCalculated, lockDurationReturned);
     }
 
-    function test_returnedStreamIdIsCorrect(uint256 amount, uint256 multiplier) public {
+    function test_Exercise_ReturnedStreamIdIsCorrect(uint256 amount, uint256 multiplier) public {
         // get the next streamId from Sablier
         uint256 nextStreamId = LOCKUP_LINEAR.nextStreamId();
 
@@ -229,7 +230,7 @@ contract LockedLPExerciseTest is Test {
         // get stream information following lock
         LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
 
-        assertEq(address(exerciser), streamDetails.sender);
+        assertEq(address(sender), streamDetails.sender);
     }
 
     function test_Sablier_StreamStartAndEndTimesAreCorrect(uint256 amount, uint256 multiplier) public {
