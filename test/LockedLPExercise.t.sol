@@ -14,6 +14,7 @@ import {LockedExerciseParams, LockedExercise, BaseExercise} from "../src/exercis
 import {ThenaOracle} from "../src/oracles/ThenaOracle.sol";
 import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
+import {IRouter} from "../src/interfaces/IRouter.sol";
 import {IPair} from "../src/interfaces/IPair.sol";
 import {IPairFactory} from "../src/interfaces/IPairFactory.sol";
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
@@ -359,10 +360,22 @@ contract LockedLPExerciseTest is Test {
         LOCKUP_LINEAR.withdrawMax({streamId: streamId, to: recipient});
         uint256 userBalanceAfterWithdrawal = IERC20(lpTokenAddress).balanceOf(recipient);
 
-        // check that user can withdraw underlying and payment tokens from LP using LP tokens
+        // get quote amounts
+        (uint256 amountAQuoted, uint256 amountBQuoted) =
+            IRouter(THENA_ROUTER).quoteRemoveLiquidity(TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, streamBalance);
 
-        // assert that the underlying tokens & payment tokens are correct and that amounts are correct
-        // assertEq(uint128(userBalanceAfterWithdrawal), streamBalance);
+        // remove liquidity
+        (uint256 amountA, uint256 amountB) = IRouter(THENA_ROUTER).removeLiquidity(
+            TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, streamBalance, amountAQuoted, amountBQuoted, recipient, block.timestamp
+        );
+
+        // get user's balance of each token following removal
+        uint256 userUnderlyingTokenBalance = IERC20(TOKEN_ADDRESS).balanceOf(recipient);
+        uint256 userPaymentTokenBalance = IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(recipient);
+
+        // assert that they are correct
+        assertEq(amountA, userUnderlyingTokenBalance);
+        assertEq(amountB, userPaymentTokenBalance);
     }
 
     // ==================

@@ -34,10 +34,10 @@ interface IRouter {
         address tokenA,
         address tokenB,
         bool stable,
-        uint liquidity,
-        uint amountAMin,
-        uint amountBMin,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
         address to,
-        uint deadline
-    ) public ensure(deadline) returns (uint amountA, uint amountB)
+        uint256 deadline
+    ) external returns (uint256 amountA, uint256 amountB);
 }
