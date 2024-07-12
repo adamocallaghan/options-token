@@ -364,9 +364,21 @@ contract LockedLPExerciseTest is Test {
         (uint256 amountAQuoted, uint256 amountBQuoted) =
             IRouter(THENA_ROUTER).quoteRemoveLiquidity(TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, streamBalance);
 
+        // approve router to transfer lp tokens
+        vm.prank(recipient);
+        IERC20(lpTokenAddress).approve(THENA_ROUTER, type(uint256).max);
+
         // remove liquidity
+        vm.prank(recipient);
         (uint256 amountA, uint256 amountB) = IRouter(THENA_ROUTER).removeLiquidity(
-            TOKEN_ADDRESS, PAYMENT_TOKEN_ADDRESS, false, streamBalance, amountAQuoted, amountBQuoted, recipient, block.timestamp
+            TOKEN_ADDRESS,
+            PAYMENT_TOKEN_ADDRESS,
+            false,
+            userBalanceAfterWithdrawal,
+            amountAQuoted,
+            amountBQuoted,
+            recipient,
+            block.timestamp + 1 weeks
         );
 
         // get user's balance of each token following removal
