@@ -38,7 +38,7 @@ contract CustomStreamExerciseTest is Test {
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
     address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // <-- BSC/ETH --> 0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9
-    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa);
+    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa); //  v1.2 - new - 0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146
 
     // fork vars
     uint256 bscFork;
@@ -129,8 +129,8 @@ contract CustomStreamExerciseTest is Test {
             feeBPS_
         );
 
-        deal(UNDERLYING_TOKEN_ADDRESS, sender, 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
-        assertEq(underlyingToken.balanceOf(address(sender)), 1e20 ether, "sender not funded");
+        deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), type(uint128).max); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
+        assertEq(underlyingToken.balanceOf(address(exerciser)), type(uint128).max, "sender not funded");
 
         // add exerciser to the list of options
         vm.startPrank(owner);
@@ -143,8 +143,27 @@ contract CustomStreamExerciseTest is Test {
         vm.stopPrank();
     }
 
-    function test_exerciseAndCreateSablierStreamExpo(uint256 amount, address recipient) public {
+    function setSegments() public {
+        uint64[] memory exponents = new uint64[](4);
+        uint40[] memory deltas = new uint40[](4);
+
+        deltas[0] = 1;
+        deltas[1] = 2;
+        deltas[2] = 3;
+        deltas[3] = 4;
+
+        exponents[0] = 1;
+        exponents[1] = 2;
+        exponents[2] = 3;
+        exponents[3] = 4;
+
+        vm.prank(owner);
+        exerciser.setSegments(exponents, deltas);
+    }
+
+    function test_fuzzExerciseAndCreateSablierStreamExpo(address recipient, uint256 amount) public {
         vm.assume(recipient != address(0));
+
         amount = bound(amount, 100, type(uint128).max);
 
         // mint options tokens
@@ -160,6 +179,9 @@ contract CustomStreamExerciseTest is Test {
         // give payment tokens
         deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
+
+        // set stream segments
+        setSegments();
 
         uint256 expectedStreamId = sablierDynamic.nextStreamId();
 
@@ -178,6 +200,50 @@ contract CustomStreamExerciseTest is Test {
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+        //@note assert balances of stream correct
+    }
+
+    function test_exerciseAndCreateSablierStreamExpo() public {
+        //vm.assume(recipient != address(0));
+        address recipient = makeAddr("recipient"); 
+
+        uint256 amount = 40000000; //bound(amount, 100, type(uint128).max);
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(user, amount);
+
+        // took this from the contract
+        uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
+        console.log("price", price);
+        uint256 expectedPaymentAmount = amount.mulWadUp(price);
+        console.log("expectedPaymentAmount", expectedPaymentAmount); //@note there is a slight difference between the two values here
+
+        // give payment tokens
+        deal(PAYMENT_TOKEN_ADDRESS, user, expectedPaymentAmount);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), expectedPaymentAmount, "user not funded");
+
+        // set stream segments
+        setSegments();
+
+        uint256 expectedStreamId = sablierDynamic.nextStreamId();
+
+        vm.prank(user);
+        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+
+        // verify options tokens were transferred
+        assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
+        assertEqDecimal(optionsToken.totalSupply(), 0, 18, "option tokens not burned");
+        assertEq(streamId, expectedStreamId, "stream id not created");
+
+        // verify payment tokens were transferred
+        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 0, 18, "user still has payment tokens");
+        uint256 paymentFee1 = expectedPaymentAmount.mulDivDown(feeBPS_[0], 10000);
+        uint256 paymentFee2 = expectedPaymentAmount - paymentFee1;
+        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
+        assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
+        assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
+        //@note assert balances of stream correct
     }
 
     function test_onlyOwnerCanSetSegments() public {
