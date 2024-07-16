@@ -242,7 +242,7 @@ contract LockedLPExerciseTest is Test {
         LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
 
         uint256 lockStartTime = block.timestamp + lockDuration;
-        uint256 lockEndTime = lockStartTime + 100;
+        uint256 lockEndTime = lockStartTime + 1;
 
         assertEq(lockStartTime, streamDetails.cliffTime);
         assertEq(lockEndTime, streamDetails.endTime);

@@ -18,7 +18,7 @@ abstract contract SablierStreamCreator {
     address public immutable SENDER;
     ISablierV2LockupLinear public immutable LOCKUP_LINEAR;
     ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC;
-    
+
     //@note would want to initialize these in the constructor??
     uint64[] public segmentExponents;
     uint40[] public segmentDeltas;
@@ -65,10 +65,7 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_)
-        internal
-        returns (uint256 streamId)
-    {
+    function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
         // Approve the Sablier contract to spend DAI
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
@@ -83,7 +80,7 @@ abstract contract SablierStreamCreator {
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not
         params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-        params.segments = _constructSegmentWithDelta(amount_); 
+        params.segments = _constructSegmentWithDelta(amount_);
 
         // Create the LockupDynamic stream
         streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
@@ -99,13 +96,13 @@ abstract contract SablierStreamCreator {
 
     ///@notice Construct the segments for the stream creation
     ///@param amount_ The amount of the stream
-    ///@dev Sablier checks that the total deposited amount is equal to the sum of the segment amounts otherwise stream creation will revert. To handle truncation and make sure we stream the full amount to the recipient we take the remainder from the division of amount and segments length and add it to the amoun stream in the last segment. 
+    ///@dev Sablier checks that the total deposited amount is equal to the sum of the segment amounts otherwise stream creation will revert. To handle truncation and make sure we stream the full amount to the recipient we take the remainder from the division of amount and segments length and add it to the amoun stream in the last segment.
     function _constructSegmentWithDelta(uint256 amount_) internal view returns (LockupDynamic.SegmentWithDelta[] memory) {
         if (segmentExponents.length == 0 || segmentDeltas.length == 0) {
             revert SablierStreamCreator__SegmentsNotSet();
         }
         //@note should we check the result is not larger then uint128 max?
-        uint256 amountPerSegment = amount_ / segmentExponents.length; 
+        uint256 amountPerSegment = amount_ / segmentExponents.length;
         uint256 remainder = amount_ % segmentExponents.length;
 
         LockupDynamic.SegmentWithDelta[] memory segments = new LockupDynamic.SegmentWithDelta[](segmentExponents.length);
@@ -115,14 +112,9 @@ abstract contract SablierStreamCreator {
             if (i == segmentExponents.length - 1) {
                 segmentAmount += remainder.toUint128();
             }
-            
-            segments[i] = LockupDynamic.SegmentWithDelta({
-                amount: segmentAmount,
-                exponent: ud2x18(segmentExponents[i]),
-                delta: segmentDeltas[i]
-            });
+
+            segments[i] = LockupDynamic.SegmentWithDelta({amount: segmentAmount, exponent: ud2x18(segmentExponents[i]), delta: segmentDeltas[i]});
         }
         return segments;
     }
-
 }

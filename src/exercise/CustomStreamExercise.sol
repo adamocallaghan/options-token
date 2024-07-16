@@ -13,7 +13,7 @@ import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator, LockupDynamic} from "src/sablier/SablierStreamCreator.sol";
 
 /// @title Exponentially Vested Options Token Exercise Contract
-/// @author @funkornaut
+/// @author @funkornaut, @adamo
 /// @notice Contract that allows the holder of options tokens to exercise them,
 /// in this case, by purchasing the underlying token at a discount to the market price
 /// and vested/released exponentially over a set period of time per account.
@@ -133,7 +133,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         onlyOToken
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
-        if(segmentExponents.length == 0 || segmentDeltas.length == 0) {
+        if (segmentExponents.length == 0 || segmentDeltas.length == 0) {
             revert Exercise__SegmentsNotSet();
         }
         return _exercise(from, amount, recipient, params);
@@ -158,7 +158,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         }
 
         emit SegmentsSet(exponents_, deltas_);
-
     }
 
     /// @notice Sets the oracle contract. Only callable by the owner.
