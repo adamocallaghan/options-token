@@ -2,6 +2,7 @@
 pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
 import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
@@ -44,6 +45,7 @@ contract VestedTokenExerciseTest is Test {
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
+    //console.log("bsc fork: ", bscFork);
     //uint256 currentBlock = block.number;
     uint256 constant BLOCKS_IN_30_DAYS = 864000; // 30 days * 24 hours * 60 minutes * 60 seconds / 3 seconds per block
     //uint256 forkTestStartBlock = currentBlock - BLOCKS_IN_30_DAYS;
@@ -86,6 +88,7 @@ contract VestedTokenExerciseTest is Test {
     function setUp() public {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
+
 
         // set up accounts and fee recipients
         owner = makeAddr("owner");

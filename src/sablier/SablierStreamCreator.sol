@@ -18,10 +18,9 @@ abstract contract SablierStreamCreator {
     address public immutable SENDER;
     ISablierV2LockupLinear public immutable LOCKUP_LINEAR;
     ISablierV2LockupDynamic public immutable LOCKUP_DYNAMIC;
-
-    //@note would want to initialize these in the constructor??
+    
     uint64[] public segmentExponents;
-    uint40[] public segmentDeltas;
+    uint40[] public segmentDurations;
 
     constructor(address sender_, address lockupLinear_, address lockupDynamic_) {
         if (lockupLinear_ == address(0) || lockupDynamic_ == address(0) || sender_ == address(0)) {
@@ -42,7 +41,7 @@ abstract contract SablierStreamCreator {
         returns (uint256 streamId)
     {
         // Approve the Sablier contract to pull the tokens from this contract
-        IERC20(token_).approve(address(LOCKUP_LINEAR), amount_); //@note do we need this if sender is SENDER now?
+        IERC20(token_).approve(address(LOCKUP_LINEAR), amount_); 
 
         LockupLinear.CreateWithDurations memory params;
         // Declare the function parameters
@@ -51,13 +50,12 @@ abstract contract SablierStreamCreator {
         params.totalAmount = amount_.toUint128(); // Total amount is the amount inclusive of all fees
         params.asset = IERC20(token_); // The streaming asset
         params.cancelable = true; // Whether the stream will be cancelable or not
-        params.transferable = true; // Whether the stream will be transferable or not @note do we want this?
+        params.transferable = true; // Whether the stream will be transferable or not
         params.durations = LockupLinear.Durations({
-            //@note just use this as a "locked" stream set the cliff duration to the time you wish to release the tokens and the totalDuration to clifftime + 1 seconds
-            cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time @note I think we want to keep this a constant
+            cliff: cliffDuration_, // Assets will be unlocked / begin streaming only after this time 
             total: totalDuration_ // Setting a total duration of the stream
         });
-        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter for charging a fee @note we take fees in other places so no need for this I believe
+        params.broker = Broker(address(0), ud60x18(0)); // Optional parameter for charging a fee 
 
         // Create the LockupLinear stream using a function that sets the start time to `block.timestamp`
         streamId = LOCKUP_LINEAR.createWithDurations(params);
@@ -70,7 +68,7 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
 
         // Declare the params struct
-        LockupDynamic.CreateWithDeltas memory params;
+        LockupDynamic.CreateWithDurations memory params;
 
         // Declare the function parameters
         params.sender = SENDER; // The sender will be able to cancel the stream
@@ -80,10 +78,10 @@ abstract contract SablierStreamCreator {
         params.cancelable = true; // Whether the stream will be cancelable or not
         params.transferable = true; // Whether the stream will be transferable or not
         params.broker = Broker(address(0), ud60x18(0)); // Optional parameter left undefined
-        params.segments = _constructSegmentWithDelta(amount_);
+        params.segments = _constructSegmentWithDuration(amount_); 
 
         // Create the LockupDynamic stream
-        streamId = LOCKUP_DYNAMIC.createWithDeltas(params);
+        streamId = LOCKUP_DYNAMIC.createWithDurations(params);
 
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
@@ -96,24 +94,27 @@ abstract contract SablierStreamCreator {
 
     ///@notice Construct the segments for the stream creation
     ///@param amount_ The amount of the stream
-    ///@dev Sablier checks that the total deposited amount is equal to the sum of the segment amounts otherwise stream creation will revert. To handle truncation and make sure we stream the full amount to the recipient we take the remainder from the division of amount and segments length and add it to the amoun stream in the last segment.
-    function _constructSegmentWithDelta(uint256 amount_) internal view returns (LockupDynamic.SegmentWithDelta[] memory) {
-        if (segmentExponents.length == 0 || segmentDeltas.length == 0) {
+    ///@dev Sablier checks that the total deposited amount is equal to the sum of the segment amounts otherwise stream creation will revert. To handle truncation and make sure we stream the full amount to the recipient we take the remainder from the division of amount and segments length and add it to the amoun stream in the last segment. 
+    function _constructSegmentWithDuration(uint256 amount_) internal view returns (LockupDynamic.SegmentWithDuration[] memory) {
+        if (segmentExponents.length == 0 || segmentDurations.length == 0) {
             revert SablierStreamCreator__SegmentsNotSet();
         }
-        //@note should we check the result is not larger then uint128 max?
-        uint256 amountPerSegment = amount_ / segmentExponents.length;
+        uint256 amountPerSegment = amount_ / segmentExponents.length; 
         uint256 remainder = amount_ % segmentExponents.length;
 
-        LockupDynamic.SegmentWithDelta[] memory segments = new LockupDynamic.SegmentWithDelta[](segmentExponents.length);
+        LockupDynamic.SegmentWithDuration[] memory segments = new LockupDynamic.SegmentWithDuration[](segmentExponents.length);
         for (uint256 i = 0; i < segmentExponents.length; i++) {
             uint128 segmentAmount = amountPerSegment.toUint128();
             // Add the remainder to the last segment
             if (i == segmentExponents.length - 1) {
                 segmentAmount += remainder.toUint128();
             }
-
-            segments[i] = LockupDynamic.SegmentWithDelta({amount: segmentAmount, exponent: ud2x18(segmentExponents[i]), delta: segmentDeltas[i]});
+            
+            segments[i] = LockupDynamic.SegmentWithDuration({
+                amount: segmentAmount,
+                exponent: ud2x18(segmentExponents[i]),
+                duration: segmentDurations[i]
+            });
         }
         return segments;
     }

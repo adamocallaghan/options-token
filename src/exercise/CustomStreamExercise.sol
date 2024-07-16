@@ -133,7 +133,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         onlyOToken
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
-        if (segmentExponents.length == 0 || segmentDeltas.length == 0) {
+        if(segmentExponents.length == 0 || segmentDurations.length == 0) {
             revert Exercise__SegmentsNotSet();
         }
         return _exercise(from, amount, recipient, params);
@@ -149,12 +149,12 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         }
         // Clear the current arrays to resize
         delete segmentExponents;
-        delete segmentDeltas;
+        delete segmentDurations;
 
         // Initialize the arrays with the correct length
         for (uint256 i = 0; i < exponents_.length; i++) {
             segmentExponents.push(exponents_[i]);
-            segmentDeltas.push(deltas_[i]);
+            segmentDurations.push(deltas_[i]);
         }
 
         emit SegmentsSet(exponents_, deltas_);

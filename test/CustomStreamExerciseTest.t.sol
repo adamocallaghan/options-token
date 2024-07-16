@@ -2,6 +2,7 @@
 pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
+import {console2} from "forge-std/console2.sol";
 import {CustomStreamExercise} from "../src/exercise/CustomStreamExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
@@ -37,13 +38,13 @@ contract CustomStreamExerciseTest is Test {
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // <-- BSC/ETH --> 0xAFb979d9afAd1aD27C5eFf4E27226E3AB9e5dCC9
-    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa); //  v1.2 - new - 0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x88ad3B5c62A46Df953A5d428d33D70408F53C408); // v1.2 new - 0x88ad3B5c62A46Df953A5d428d33D70408F53C408 - old -> 0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2 
+    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146); //  v1.2 - new -  old - 0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa
 
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-
+    
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
     address UNDERLYING_TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address - DAO Maker token
@@ -75,19 +76,20 @@ contract CustomStreamExerciseTest is Test {
 
     function setUp() public {
         // fork binance smart chain
-        bscFork = vm.createSelectFork(BSC_RPC_URL);
-        //vm.selectFork(bscFork);
+        // 40184537
+        vm.createSelectFork(BSC_RPC_URL);
+        //assert(bscFork > 0); // Ensure the fork was created
 
         // set up accounts and fee recipients
         //@note not sure if deal's are necessary 
         owner = makeAddr("owner");
-        vm.deal(owner, 1 ether);
+       // vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
-        vm.deal(tokenAdmin, 1 ether);
+       // vm.deal(tokenAdmin, 1 ether);
         sender = makeAddr("sender"); //sender of the token stream
-        vm.deal(sender, 1 ether);
+       // vm.deal(sender, 1 ether);
         user = makeAddr("user");
-        vm.deal(user, 1 ether);
+       // vm.deal(user, 1 ether);
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -145,12 +147,12 @@ contract CustomStreamExerciseTest is Test {
 
     function setSegments() public {
         uint64[] memory exponents = new uint64[](4);
-        uint40[] memory deltas = new uint40[](4);
+        uint40[] memory durations = new uint40[](4);
 
-        deltas[0] = 1;
-        deltas[1] = 2;
-        deltas[2] = 3;
-        deltas[3] = 4;
+        durations[0] = 1;
+        durations[1] = 2;
+        durations[2] = 3;
+        durations[3] = 4;
 
         exponents[0] = 1;
         exponents[1] = 2;
@@ -158,7 +160,7 @@ contract CustomStreamExerciseTest is Test {
         exponents[3] = 4;
 
         vm.prank(owner);
-        exerciser.setSegments(exponents, deltas);
+        exerciser.setSegments(exponents, durations);
     }
 
     function test_fuzzExerciseAndCreateSablierStreamExpo(address recipient, uint256 amount) public {
@@ -254,12 +256,12 @@ contract CustomStreamExerciseTest is Test {
         vm.stopPrank();
 
         uint64[] memory exponents = new uint64[](4);
-        uint40[] memory deltas = new uint40[](4);
+        uint40[] memory durations = new uint40[](4);
         
-        deltas[0] = 1;
-        deltas[1] = 2;
-        deltas[2] = 3;
-        deltas[3] = 4;
+        durations[0] = 1;
+        durations[1] = 2;
+        durations[2] = 3;
+        durations[3] = 4;
 
         exponents[0] = 1;
         exponents[1] = 2;
@@ -267,25 +269,25 @@ contract CustomStreamExerciseTest is Test {
         exponents[3] = 4;
 
         vm.prank(owner);
-        exerciser.setSegments(exponents, deltas);
+        exerciser.setSegments(exponents, durations);
 
         uint256 expo1 = exerciser.segmentExponents(0);
         uint256 expo2 = exerciser.segmentExponents(1);
         uint256 expo3 = exerciser.segmentExponents(2);
         uint256 expo4 = exerciser.segmentExponents(3);
-        uint256 delta1 = exerciser.segmentDeltas(0);
-        uint256 delta2 = exerciser.segmentDeltas(1);
-        uint256 delta3 = exerciser.segmentDeltas(2);
-        uint256 delta4 = exerciser.segmentDeltas(3);
+        uint256 duration1 = exerciser.segmentDurations(0);
+        uint256 duration2 = exerciser.segmentDurations(1);
+        uint256 duration3 = exerciser.segmentDurations(2);
+        uint256 duration4 = exerciser.segmentDurations(3);
 
         assertEq(expo1, 1);
         assertEq(expo2, 2);
         assertEq(expo3, 3);
         assertEq(expo4, 4);
-        assertEq(delta1, 1);
-        assertEq(delta2, 2);
-        assertEq(delta3, 3);
-        assertEq(delta4, 4);
+        assertEq(duration1, 1);
+        assertEq(duration2, 2);
+        assertEq(duration3, 3);
+        assertEq(duration4, 4);
 
     }
 }
