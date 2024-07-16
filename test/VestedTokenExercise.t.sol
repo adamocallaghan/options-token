@@ -39,8 +39,8 @@ contract VestedTokenExerciseTest is Test {
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address public constant SABLIER_LINEAR_ADDRESS = address(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2);
-    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x88ad3B5c62A46Df953A5d428d33D70408F53C408);
+    address public constant SABLIER_DYNAMIC_ADDRESS = address(0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146);
 
     // fork vars
     uint256 bscFork;
