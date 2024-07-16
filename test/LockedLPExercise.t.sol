@@ -60,8 +60,8 @@ contract LockedLPExerciseTest is Test {
     address THENA_FACTORY = 0xAFD89d21BdB66d00817d4153E055830B1c2B3970; // the factory for getting our LP token pair address
 
     // Sablier
-    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = ISablierV2LockupLinear(0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2); // Linear on BSC
-    ISablierV2LockupLinear public constant SABLIER_DYNAMIC_ADDRESS = ISablierV2LockupLinear(0xF2f3feF2454DcA59ECA929D2D8cD2a8669Cc6214);
+    ISablierV2LockupLinear public immutable LOCKUP_LINEAR = ISablierV2LockupLinear(0x88ad3B5c62A46Df953A5d428d33D70408F53C408); // Linear on BSC
+    ISablierV2LockupLinear public constant SABLIER_DYNAMIC_ADDRESS = ISablierV2LockupLinear(0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146);
 
     // EOA vars
     address owner;
@@ -229,7 +229,7 @@ contract LockedLPExerciseTest is Test {
         (,,, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
 
         // get stream information following lock
-        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+        LockupLinear.StreamLL memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
 
         assertEq(address(sender), streamDetails.sender);
     }
@@ -239,7 +239,7 @@ contract LockedLPExerciseTest is Test {
         (,, uint256 lockDuration, uint256 streamId) = exerciseWithMultiplier(amount, multiplier);
 
         // get stream information following lock
-        LockupLinear.Stream memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
+        LockupLinear.StreamLL memory streamDetails = LOCKUP_LINEAR.getStream(streamId);
 
         uint256 lockStartTime = block.timestamp + lockDuration;
         uint256 lockEndTime = lockStartTime + 1;
