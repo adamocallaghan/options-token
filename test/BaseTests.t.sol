@@ -39,7 +39,7 @@ struct StreamDetails {
     uint256 ratePerSecond;
 }
 
-contract BaseTests is Test {
+abstract contract BaseTests is Test {
     using FixedPointMathLib for uint256;
 
     uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
@@ -153,33 +153,5 @@ contract BaseTests is Test {
         IERC20(PAYMENT_TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         IERC20(TOKEN_ADDRESS).approve(THENA_ROUTER, type(uint256).max);
         vm.stopPrank();
-    }
-
-    // ==============================
-    // == EXERCISE WITH MULTIPLIER ==
-    // ==============================
-
-    function exerciseWithMultiplier(uint256 amount, uint256 multiplier)
-        public
-        returns (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId)
-    {
-        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
-        multiplier = bound(multiplier, maxMultiplier, minMultiplier); // @note maxMult and minMult are reversed in bound here
-
-        address recipient = makeAddr("recipient");
-
-        // mint options tokens
-        vm.prank(tokenAdmin);
-        optionsToken.mint(address(this), amount);
-
-        // mint payment tokens
-        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
-        deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
-
-        // exercise options tokens, create LP, and lock in Sablier
-        LockedExerciseParams memory params =
-            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: multiplier});
-
-        (paymentAmount, lpTokenAddress, lockDuration, streamId) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
 }
