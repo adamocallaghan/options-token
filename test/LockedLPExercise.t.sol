@@ -301,7 +301,7 @@ contract LockedLPExerciseTest is Test {
 
     function test_Exercise_RevertsIfMultiplierTooLow(uint256 amount, uint256 multiplier) public {
         amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
-        multiplier = bound(multiplier, 0, maxMultiplier - 1);
+        multiplier = bound(multiplier, 0, maxMultiplier - 1); // bound multiplier too low
 
         address recipient = makeAddr("recipient");
 
@@ -324,7 +324,7 @@ contract LockedLPExerciseTest is Test {
 
     function test_Exercise_RevertsIfMultiplierTooHigh(uint256 amount, uint256 multiplier) public {
         amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
-        multiplier = bound(multiplier, minMultiplier + 1, type(uint256).max);
+        multiplier = bound(multiplier, minMultiplier + 1, type(uint256).max); // bound multiplier too high
 
         address recipient = makeAddr("recipient");
 
@@ -343,6 +343,37 @@ contract LockedLPExerciseTest is Test {
         vm.expectRevert(LockedExercise.Exercise__InvalidMultiplier.selector);
         (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
             optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
+
+    function test_Exercise_RevertsIfDeadlinePast(uint256 amount, uint256 multiplier) public {
+        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
+        multiplier = bound(multiplier, maxMultiplier, minMultiplier);
+
+        address recipient = makeAddr("recipient");
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // mint payment tokens
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
+
+        // exercise options tokens, create LP, and lock in Sablier
+        LockedExerciseParams memory params =
+            LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: (block.timestamp - 1), multiplier: multiplier});
+
+        vm.expectRevert(LockedExercise.Exercise__PastDeadline.selector);
+        (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
+            optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
+
+    function test_Exercise_RevertsIfContractIsOutOfTokens(uint256 amount, uint256 multiplier) public {
+        // transfer all underlying tokens from the exercise contract to a random address
+
+        // attempt to exercise the otokens
+
+        // expectRevert: contract out of tokens
     }
 
     // ==========================
