@@ -360,10 +360,34 @@ contract LockedLPExerciseTest is Test {
         deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
 
         // exercise options tokens, create LP, and lock in Sablier
+        // deadline is lowered to trigger Past Deadline revert
         LockedExerciseParams memory params =
             LockedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: (block.timestamp - 1), multiplier: multiplier});
 
         vm.expectRevert(LockedExercise.Exercise__PastDeadline.selector);
+        (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
+            optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+    }
+
+    function test_Exercise_RevertsIfSlippageTooHigh(uint256 amount, uint256 multiplier) public {
+        amount = bound(amount, 100, 1e18); // 1e18 works, but 1e27 doesn't - uint128 on sablier issue?
+        multiplier = bound(multiplier, maxMultiplier, minMultiplier);
+
+        address recipient = makeAddr("recipient");
+
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(address(this), amount);
+
+        // mint payment tokens
+        uint256 expectedPaymentAmount = amount.mulWadUp(ORACLE_INIT_TWAP_VALUE.mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM));
+        deal(PAYMENT_TOKEN_ADDRESS, address(this), 1e6 * 1e18, true);
+
+        // exercise options tokens, create LP, and lock in Sablier
+        // maxPaymentAmount is lowered to 1 to trigger slippage revert
+        LockedExerciseParams memory params = LockedExerciseParams({maxPaymentAmount: 1, deadline: type(uint256).max, multiplier: multiplier});
+
+        vm.expectRevert(LockedExercise.Exercise__SlippageTooHigh.selector);
         (uint256 paymentAmount, address lpTokenAddress, uint256 lockDuration, uint256 streamId) =
             optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
     }
