@@ -76,7 +76,6 @@ contract CustomStreamExerciseTest is Test {
 
     function setUp() public {
         // fork binance smart chain
-        // 40184537
         vm.createSelectFork(BSC_RPC_URL);
         //assert(bscFork > 0); // Ensure the fork was created
 

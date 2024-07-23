@@ -3,7 +3,7 @@ pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {VestedTokenExercise} from "../src/exercise/VestedTokenExercise.sol";
+import {VestedTokenExercise, VestedExerciseParams} from "../src/exercise/VestedTokenExercise.sol";
 import {OptionsToken} from "../src/OptionsToken.sol";
 import {BaseExercise} from "../src/exercise/BaseExercise.sol";
 import {SablierStreamCreator} from "../src/sablier/SablierStreamCreator.sol";
@@ -16,6 +16,8 @@ import {ISablierV2Lockup} from "@sablier/v2-core/src/interfaces/ISablierV2Lockup
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "oz/proxy/ERC1967/ERC1967Proxy.sol";
+import {MockBalancerTwapOracle} from "./mocks/MockBalancerTwapOracle.sol";
+import {IOracle} from "../src/interfaces/IOracle.sol";
 
 struct Params {
     IThenaPair pair;
@@ -28,14 +30,10 @@ struct Params {
 contract VestedTokenExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
-    uint16 constant PRICE_MULTIPLIER = 5000; // 0.5
-    //uint56 constant ORACLE_SECS = 30 minutes;
-    //uint56 constant ORACLE_AGO = 2 minutes;
+    uint16 constant PRICE_MULTIPLIER = 5000; // 50% discount
     uint128 constant ORACLE_MIN_PRICE = 1e17;
-    //uint56 constant ORACLE_LARGEST_SAFETY_WINDOW = 24 hours;
     uint256 constant ORACLE_INIT_TWAP_VALUE = 1e19;
     uint256 constant ORACLE_MIN_PRICE_DENOM = 10000;
-    //uint256 constant MAX_SUPPLY = 1e27; // the max supply of the options token & the underlying token
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
@@ -45,10 +43,7 @@ contract VestedTokenExerciseTest is Test {
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-    //console.log("bsc fork: ", bscFork);
-    //uint256 currentBlock = block.number;
-    uint256 constant BLOCKS_IN_30_DAYS = 864000; // 30 days * 24 hours * 60 minutes * 60 seconds / 3 seconds per block
-    //uint256 forkTestStartBlock = currentBlock - BLOCKS_IN_30_DAYS;
+    //uint256 constant BLOCKS_IN_30_DAYS = 864000; // 30 days * 24 hours * 60 minutes * 60 seconds / 3 seconds per block
 
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
@@ -81,7 +76,6 @@ contract VestedTokenExerciseTest is Test {
     IERC20 underlyingToken;
 
     uint40 cliffDuration = 1 days;
-    uint40 totalDuration = 30 days;
 
     uint256 blockNumBeforeFork;
 
@@ -92,12 +86,8 @@ contract VestedTokenExerciseTest is Test {
 
         // set up accounts and fee recipients
         owner = makeAddr("owner");
-        vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
-        vm.deal(tokenAdmin, 1 ether);
         user = makeAddr("user");
-        vm.deal(user, 1 ether);
-
         sender = makeAddr("sender");
 
         feeRecipients_ = new address[](2);
@@ -120,6 +110,7 @@ contract VestedTokenExerciseTest is Test {
 
         // set up the thena oracle parameters
         _default = Params(IThenaPair(POOL_ADDRESS), UNDERLYING_TOKEN_ADDRESS, address(this), 30 minutes, 1000);
+
         // deploy oracle contract
         oracle = new ThenaOracle(_default.pair, _default.token, _default.owner, _default.secs, _default.minPrice);
 
@@ -136,9 +127,7 @@ contract VestedTokenExerciseTest is Test {
             paymentToken,
             underlyingToken,
             oracle,
-            PRICE_MULTIPLIER, // 50% discount
             cliffDuration,
-            totalDuration,
             feeRecipients_,
             feeBPS_
         );
@@ -166,6 +155,7 @@ contract VestedTokenExerciseTest is Test {
         assertGt(oraclePrice, ORACLE_MIN_PRICE, "Price too low");
     }
 
+    /// Access Controled Function Tests
     function test_vestedOnlyTokenAdminCanMint(uint256 amount, address hacker) public {
         vm.assume(hacker != tokenAdmin);
 
@@ -188,27 +178,39 @@ contract VestedTokenExerciseTest is Test {
 
         vm.startPrank(hacker);
         vm.expectRevert();
-        exerciser.setCliffDuration(uint40(1111));
+        exerciser.setCliffDuration(uint40(2 days));
         vm.stopPrank();
+
+        vm.prank(owner);
+        exerciser.setCliffDuration(uint40(2 days));
+        assertEq(exerciser.cliffDuration(), 2 days);
     }
 
-    function test_vestedOnlyOwnerCanSetTotalDuration(address hacker) public {
-        vm.assume(hacker != exerciser.owner());
+    // function test_vestedOnlyOwnerCanSetTotalDuration(address hacker) public {
+    //     vm.assume(hacker != exerciser.owner());
 
-        vm.startPrank(hacker);
-        vm.expectRevert();
-        exerciser.setTotalDuration(uint40(1111));
-        vm.stopPrank();
-    }
+    //     vm.startPrank(hacker);
+    //     vm.expectRevert();
+    //     exerciser.setTotalDuration(uint40(5 days));
+    //     vm.stopPrank();
 
-    function test_vestedOnlyOwnerCanChangeMultiplier(address hacker) public {
-        vm.assume(hacker != exerciser.owner());
+    //     vm.prank(owner);
+    //     exerciser.setTotalDuration(uint40(5 days));
+    //     assertEq(exerciser.totalDuration(), 5 days);
+    // }
 
-        vm.startPrank(hacker);
-        vm.expectRevert();
-        exerciser.setMultiplier(1111);
-        vm.stopPrank();
-    }
+    // function test_vestedOnlyOwnerCanChangeMultiplier(address hacker) public {
+    //     vm.assume(hacker != exerciser.owner());
+
+    //     vm.startPrank(hacker);
+    //     vm.expectRevert();
+    //     exerciser.setMultiplier(1111);
+    //     vm.stopPrank();
+
+    //     vm.prank(owner);
+    //     exerciser.setMultiplier(1111);
+    //     assertEq(exerciser.multiplier(), 1111);
+    // }
 
     function test_vestedExerciseNotOToken(uint256 amount, address recipient) public {
         amount = bound(amount, 0, type(uint128).max);
@@ -217,7 +219,6 @@ contract VestedTokenExerciseTest is Test {
         vm.prank(tokenAdmin);
         optionsToken.mint(address(this), amount);
 
-        // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
 
@@ -251,18 +252,34 @@ contract VestedTokenExerciseTest is Test {
         vm.expectRevert(OptionsToken.OptionsToken__NotExerciseContract.selector);
         optionsToken.exercise(amount, recipient, address(exerciser), "");
     }
+
+    //@todo fix this test - might need to set up mock oracle or mock IOracle??
     // function test_vestedOnlyOwnerCanChangeOracle(address hacker) public {
     //     vm.assume(hacker != exerciser.owner());
 
-    //     address notAnOracle = makeAddr("notAnOracle");
-    //     notOracle = IOracle(notAnOracle);
+    //     address[] memory tokens = new address[](2);
+    //     tokens[0] = PAYMENT_TOKEN_ADDRESS;
+    //     tokens[1] = UNDERLYING_TOKEN_ADDRESS;
+    //     MockBalancerTwapOracle mockOracle = new MockBalancerTwapOracle(tokens);
 
+    //     // Cast the mock oracle to IOracle
+    //     IOracle notAnOracle = IOracle(address(mockOracle));
+
+    //     // Ensure hacker cannot call setOracle
     //     vm.startPrank(hacker);
     //     vm.expectRevert();
-    //     exerciser.setOracle(notOracle);
+    //     exerciser.setOracle(notAnOracle);
     //     vm.stopPrank();
+
+    //     // Ensure owner can call setOracle
+    //     vm.prank(owner);
+    //     vm.expectRevert(VestedTokenExercise.Exercise__InvalidOracle.selector);
+    //     exerciser.setOracle(notAnOracle);
+    //     //assertEq(address(exerciser.oracle()), address(notAnOracle));
     // }
 
+
+    /// Test Stream Creation
     function test_exerciseAndCreateSablierLinearStream(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
         amount = bound(amount, 100, 1e38);
@@ -283,8 +300,12 @@ contract VestedTokenExerciseTest is Test {
 
         uint256 expectedStreamId = sablierLinear.nextStreamId();
 
+        // exercise options tokens, create LP, and lock in Sablier
+        VestedExerciseParams memory params =
+            VestedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
+
         vm.prank(user);
-        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(amount, recipient, address(exerciser), "");
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
 
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
@@ -307,6 +328,7 @@ contract VestedTokenExerciseTest is Test {
         assertEq(underlyingToken.allowance(address(exerciser), address(sablierLinear)), 0, "sablier still has allowance of tokens from ecerciser");
     }
 
+    /// Test Stream Interactions
     function test_sablierWithdraw() public {
         address recipient = makeAddr("recipient");
         // mint options tokens
@@ -317,8 +339,11 @@ contract VestedTokenExerciseTest is Test {
         deal(PAYMENT_TOKEN_ADDRESS, user, 2e18);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
 
+        VestedExerciseParams memory params =
+            VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
+
         vm.prank(user);
-        (uint256 paymentAmount,, uint256 streamId,) = optionsToken.exercise(2e18, recipient, address(exerciser), "");
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
         console.log("block number when stream created: ", block.number);
 
         // test fail withdraw before cliff duration ends
@@ -326,7 +351,7 @@ contract VestedTokenExerciseTest is Test {
         vm.expectRevert();
         sablierLockUp.withdrawMax({streamId: streamId, to: recipient});
 
-        vm.warp(block.timestamp + 3 days);
+        vm.warp(block.timestamp + 1 days + 10 minutes); // warp to after cliff duration
         uint256 withdrawableAmount = sablierLinear.withdrawableAmountOf(streamId);
         vm.prank(recipient);
         sablierLinear.withdrawMax({streamId: streamId, to: recipient});
@@ -335,11 +360,37 @@ contract VestedTokenExerciseTest is Test {
         assertEq(withdrawableAmount, withdrawnAmount, "withdrawn amount not correct");
         assertEq(withdrawableAmount, underlyingToken.balanceOf(recipient), "Recipient balance not correct");
 
-        vm.warp(block.timestamp + 28 days); // wrap to end of stream and withdraw all
+        vm.warp(block.timestamp + vestDuration + 1 minutes); // wrap to end of stream and withdraw all
         uint256 totalDeposited = sablierLinear.getDepositedAmount(streamId);
         vm.prank(recipient);
         sablierLinear.withdrawMax({streamId: streamId, to: recipient});
 
         assertEq(totalDeposited, underlyingToken.balanceOf(recipient), "Recipient balance not correct");
+    }
+
+    function test_SenderCanCancelStream() public {
+        address recipient = makeAddr("recipient");
+        // mint options tokens
+        vm.prank(tokenAdmin);
+        optionsToken.mint(user, 2e18);
+
+        // give payment tokens
+        deal(PAYMENT_TOKEN_ADDRESS, user, 2e18);
+        assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
+
+        VestedExerciseParams memory params =
+            VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
+
+        vm.prank(user);
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
+        console.log("block number when stream created: ", block.number);
+
+        // cancel the stream as the sender
+        vm.prank(sender);
+        sablierLockUp.cancel(streamId);
+
+        // verify stream is cancelled
+        assertEq(sablierLinear.wasCanceled(streamId), true, "stream not cancelled");
+
     }
 }

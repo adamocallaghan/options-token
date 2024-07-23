@@ -34,7 +34,12 @@ abstract contract SablierStreamCreator {
     /////////////////////////////////
     /// Stream Creation Functions ///
     /////////////////////////////////
-
+    ///@dev Creates a linear stream with a cliff and total duration
+    ///@param cliffDuration_ The duration in seconds before the stream starts
+    ///@param totalDuration_ The total duration of the stream
+    ///@param amount_ The total amount of the stream
+    ///@param token_ The address of token to be streamed
+    ///@param recipient_ The address of the recipient of the stream
     function createLinearStream(uint40 cliffDuration_, uint40 totalDuration_, uint256 amount_, address token_, address recipient_)
         internal
         virtual
@@ -63,6 +68,12 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
+    
+    ///@dev Creates a stream with a custom shape based on the segments
+    ///@notice both segmentExponents and segmentDurations must be set before calling this function
+    ///@param amount_ The total amount of the stream
+    ///@param token_ The address of token to be streamed
+    ///@param recipient_ The address of the recipient of the stream
     function createStreamWithCustomSegments(uint256 amount_, address token_, address recipient_) internal returns (uint256 streamId) {
         // Approve the Sablier contract to spend DAI
         IERC20(token_).approve(address(LOCKUP_DYNAMIC), amount_);
