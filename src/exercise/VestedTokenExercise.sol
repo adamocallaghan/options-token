@@ -221,7 +221,7 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     // function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
     //     paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
     // }
-
+    //@todo double check these functions
     function getLockDurationFromDiscount(uint256 _discount) public view returns (uint256 duration) {
         (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
         duration = SignedMath.abs(slope * int256(_discount) + intercept);

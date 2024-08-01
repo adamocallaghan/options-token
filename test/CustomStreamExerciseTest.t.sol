@@ -205,16 +205,13 @@ contract CustomStreamExerciseTest is Test {
     }
 
     function test_exerciseAndCreateSablierStreamExpo() public {
-        //vm.assume(recipient != address(0));
         address recipient = makeAddr("recipient"); 
 
-        uint256 amount = 40000000; //bound(amount, 100, type(uint128).max);
-
+        uint256 amount = 40000000; 
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(user, amount);
 
-        // took this from the contract
         uint256 price = oracle.getPrice().mulDivUp(PRICE_MULTIPLIER, ORACLE_MIN_PRICE_DENOM);
         console.log("price", price);
         uint256 expectedPaymentAmount = amount.mulWadUp(price);
@@ -244,7 +241,8 @@ contract CustomStreamExerciseTest is Test {
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[0]), paymentFee1, 18, "fee recipient 1 didn't receive payment tokens");
         assertEqDecimal(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(feeRecipients_[1]), paymentFee2, 18, "fee recipient 2 didn't receive payment tokens");
         assertEqDecimal(paymentAmount, expectedPaymentAmount, 18, "exercise returned wrong value");
-        //@note assert balances of stream correct
+        uint256 streamBalance = sablierDynamic.getDepositedAmount(streamId);
+        assertEqDecimal(streamBalance, amount, 18, "stream balance incorrect");
     }
 
     function test_onlyOwnerCanSetSegments() public {
@@ -288,5 +286,26 @@ contract CustomStreamExerciseTest is Test {
         assertEq(duration3, 3);
         assertEq(duration4, 4);
 
+    }
+
+    // function test_onlyOwnerCanSetOracle(address hacker) public {
+    //     vm.startPrank(hacker);
+    //     vm.expectRevert("UNAUTHORIZED");
+    //     exerciser.setOracle(IOracle(hacker));
+    //     vm.stopPrank();
+
+    //     exerciser.setOracle(address(oracle));
+    //     assertEq(exerciser.oracle(), address(oracle));
+    // }
+
+    function test_onlyOwnerCanSetMultiplier(address hacker) public {
+        vm.startPrank(hacker);
+        vm.expectRevert("UNAUTHORIZED");
+        exerciser.setMultiplier(3000);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        exerciser.setMultiplier(5000);
+        assertEq(exerciser.multiplier(), 5000);
     }
 }
