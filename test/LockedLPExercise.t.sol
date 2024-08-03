@@ -16,6 +16,7 @@ import {IThenaPair} from "../src/interfaces/IThenaPair.sol";
 import {IThenaRouter} from "./interfaces/IThenaRouter.sol";
 import {IRouter} from "../src/interfaces/IRouter.sol";
 import {IPair} from "../src/interfaces/IPair.sol";
+import {IOracle} from "../src/interfaces/IOracle.sol";
 import {IPairFactory} from "../src/interfaces/IPairFactory.sol";
 import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2LockupLinear.sol";
 import {Lockup, LockupLinear} from "@sablier/v2-core/src/types/DataTypes.sol";
@@ -443,6 +444,25 @@ contract LockedLPExerciseTest is Test {
         // assert that they are correct
         assertEq(amountA, userUnderlyingTokenBalance);
         assertEq(amountB, userPaymentTokenBalance);
+    }
+
+    // ==========================
+    // == Admin Function tests ==
+    // ==========================
+
+    function test_Admin_SetOracleRevertsIfInvalidTokensPassed() public {
+        address badToken = makeAddr("not a token");
+        // thena oralce params
+        Params memory _badOracleParams;
+        // set up the thena oracle parameters
+        _badOracleParams = Params(IThenaPair(POOL_ADDRESS), badToken, address(this), 30 minutes, 1000);
+        // deploy oracle contract
+        ThenaOracle badOracle =
+            new ThenaOracle(_badOracleParams.pair, _badOracleParams.token, _badOracleParams.owner, _badOracleParams.secs, _badOracleParams.minPrice);
+
+        vm.startPrank(owner);
+        vm.expectRevert(LockedExercise.Exercise__InvalidOracle.selector);
+        exerciser.setOracle(IOracle(badOracle));
     }
 
     // ==================
