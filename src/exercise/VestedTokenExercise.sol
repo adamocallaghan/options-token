@@ -5,11 +5,19 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {IERC20} from "oz/token/ERC20/IERC20.sol";
 import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {SignedMath} from "oz/utils/math/SignedMath.sol";
+
 
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator} from "src/sablier/SablierStreamCreator.sol";
+
+struct VestedExerciseParams {
+    uint256 maxPaymentAmount;
+    uint256 deadline;
+    uint256 multiplier;
+}
 
 /// @title Options Token Vested Exercise Contract
 /// @author @funkornaut, @adamo
@@ -23,17 +31,13 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     using FixedPointMathLib for uint256;
 
     /// Errors ///
-    error Exercise__RequestedAmountTooHigh();
-    error Exercise__VestHasNotStarted();
-    error Exercise__MultiplierOutOfRange();
     error Exercise__InvalidOracle();
     error Exercise__VestHasNotBeenSet(address);
-    error Exercise__InvalidTotalDuration(uint40);
     error Exercise__InvalidCliffDuration(uint40);
-    error Exercise__NothingToClaim();
     error Exercise__ContractOutOfTokens();
-    error Exercise__CliffDurationCannotBeZero();
-    error Exercise__TotalDurationCannotBeZero();
+    error Exercise__SlippageTooHigh();
+    error Exercise__PastDeadline();
+    error Exercise__InvalidMultiplier();
 
     /// Events ///
     event Exercised(address indexed sender, address indexed recipient, uint256 amount, uint256 paymentAmount);
@@ -67,17 +71,16 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// the underlying token while exercising options (the strike price)
     IOracle public oracle;
 
-    /// @notice The multiplier applied to the TWAP value. Encodes the discount of
-    /// the options token. Uses 4 decimals.
-    uint256 public multiplier;
+    /// @notice the discount given during exercising with locking to the LP
+    uint256 public maxMultiplier = 3000; // 70% discount
+    uint256 public minMultiplier = 8000; // 20% discount
+
+    uint256 public minVestDuration = 7 * 86400; // one week
+    uint256 public maxVestDuration = 52 * 7 * 86400; // one year
 
     /// @notice The length of time tokens will be vested before they are begin to release to the user - this is the cliff
     uint40 public cliffDuration;
 
-    /// @notice The length of time it takes for the vested tokens to be fully released - this is the totalDuration
-    uint40 public totalDuration;
-
-    //@todo add checks for vesting times
     constructor(
         OptionsToken oToken_,
         address owner_,
@@ -87,19 +90,15 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
-        uint256 multiplier_,
         uint40 cliffDuration_,
-        uint40 totalDuration_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
     ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
-        _setTotalDuration(totalDuration_);
         _setCliffDuration(cliffDuration_);
         _setOracle(oracle_);
-        _setMultiplier(multiplier_);
 
         emit SetOracle(oracle_);
     }
@@ -123,7 +122,6 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     /// @param from The user that is exercising their options tokens
     /// @param amount The amount of options tokens to exercise
     /// @param recipient The recipient of the purchased underlying tokens
-    // @note don't need params - leave empty
     function exercise(address from, uint256 amount, address recipient, bytes memory params)
         external
         override
@@ -139,8 +137,70 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
 
     /// @notice Sets the oracle contract. Only callable by the owner.
     /// @param oracle_ The new oracle contract
+    //@audit - should these be addresses not IOracle?
     function setOracle(IOracle oracle_) external onlyOwner {
         _setOracle(oracle_);
+    }
+
+    function setCliffDuration(uint40 cliffDuration_) external onlyOwner {
+        _setCliffDuration(cliffDuration_);
+    }
+
+    //////////////////////////
+    /// Internal functions ///
+    //////////////////////////
+
+    function _exercise(address from, uint256 amount, address recipient, bytes memory params)
+        internal
+        contractHasTokens(amount)
+        returns (uint256 paymentAmount, address, uint256 vestDuration, uint256 streamId)
+    {
+        // ===============
+        //  === CHECKS ===
+        // ===============
+
+        // decode params
+        VestedExerciseParams memory _params = abi.decode(params, (VestedExerciseParams));
+
+        if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
+
+        // multiplier validity
+        if (_params.multiplier > minMultiplier || _params.multiplier < maxMultiplier) {
+            revert Exercise__InvalidMultiplier();
+        }
+
+        // =========================
+        //  === PRICE & DISCOUNT ===
+        // =========================
+
+        // apply multiplier to price
+        uint256 price = oracle.getPrice().mulDivUp(_params.multiplier, MULTIPLIER_DENOM);
+
+        // get payment amount
+        paymentAmount = amount.mulWadUp(price);
+        if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
+
+        // ======================
+        //  === PROTOCOL FEES ===
+        // ======================
+        distributeFeesFrom(paymentAmount, paymentToken, from);
+
+        // ======================
+        //  === Create Stream ===
+        // ======================
+
+        // get the lock duration using the chosen multiplier
+        vestDuration = getLockDurationFromDiscount(_params.multiplier);
+
+        // create the token stream
+        (streamId) = createLinearStream(cliffDuration, uint40(vestDuration), amount, address(underlyingToken), recipient);
+
+        emit Exercised(from, recipient, amount, paymentAmount);
+    }
+
+    function _setCliffDuration(uint40 cliffDuration_) internal {
+        if (cliffDuration_ > minVestDuration) revert Exercise__InvalidCliffDuration(cliffDuration_);
+        cliffDuration = cliffDuration_;
     }
 
     function _setOracle(IOracle oracle_) internal {
@@ -152,72 +212,25 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         emit SetOracle(oracle_);
     }
 
-    /// @notice Sets the discount multiplier.
-    /// @param multiplier_ The new multiplier
-    function setMultiplier(uint256 multiplier_) external onlyOwner {
-        _setMultiplier(multiplier_);
-    }
-
-    function _setMultiplier(uint256 multiplier_) internal {
-        if (
-            multiplier_ > MULTIPLIER_DENOM * 2 // over 200%
-                || multiplier_ < MULTIPLIER_DENOM / 10 // under 10%
-        ) revert Exercise__MultiplierOutOfRange();
-        multiplier = multiplier_;
-        emit SetMultiplier(multiplier_);
-    }
-
-    function setCliffDuration(uint40 cliffDuration_) external onlyOwner {
-        _setCliffDuration(cliffDuration_);
-    }
-
-    function _setCliffDuration(uint40 cliffDuration_) internal {
-        if (cliffDuration_ > totalDuration) revert Exercise__InvalidCliffDuration(cliffDuration_);
-        cliffDuration = cliffDuration_;
-    }
-
-    function setTotalDuration(uint40 totalDuration_) external onlyOwner {
-        _setTotalDuration(totalDuration_);
-    }
-
-    function _setTotalDuration(uint40 totalDuration_) internal {
-        if (totalDuration_ < uint40(1)) revert Exercise__TotalDurationCannotBeZero();
-        if (totalDuration_ <= cliffDuration) revert Exercise__InvalidTotalDuration(totalDuration_);
-        totalDuration = totalDuration_;
-    }
-
-    //////////////////////////
-    /// Internal functions ///
-    //////////////////////////
-
-    function _exercise(address from, uint256 amount, address recipient, bytes memory params)
-        internal
-        contractHasTokens(amount)
-        returns (uint256 paymentAmount, address, uint256 streamId, uint256)
-    {
-        // apply multiplier to price
-        paymentAmount = getPaymentAmount(amount);
-
-        // @todo figure out max payment amount - do we need this?
-        // if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
-
-        // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
-        distributeFeesFrom(paymentAmount, paymentToken, from);
-
-        // create the token stream
-        (streamId) = createLinearStream(cliffDuration, totalDuration, amount, address(underlyingToken), recipient);
-
-        emit Exercised(from, recipient, amount, paymentAmount);
-    }
-
     ////////////////////////
     /// Helper Functions ///
     ////////////////////////
 
-    /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
-    /// @param amount The amount of options tokens to exercise
-    function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
-        paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
+    // /// @notice Returns the amount of payment tokens required to exercise the given amount of options tokens.
+    // /// @param amount The amount of options tokens to exercise
+    // function getPaymentAmount(uint256 amount) internal view returns (uint256 paymentAmount) {
+    //     paymentAmount = amount.mulWadUp(oracle.getPrice().mulDivUp(multiplier, MULTIPLIER_DENOM));
+    // }
+    //@todo double check these functions
+    function getLockDurationFromDiscount(uint256 _discount) public view returns (uint256 duration) {
+        (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
+        duration = SignedMath.abs(slope * int256(_discount) + intercept);
+        // lockDuration = 1 weeks;
+    }
+
+    function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
+        slope = int256(maxVestDuration - minVestDuration) / (int256(maxMultiplier) - int256(minMultiplier));
+        intercept = int256(minVestDuration) - (slope * int256(minMultiplier));
     }
 
 }

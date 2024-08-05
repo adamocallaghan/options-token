@@ -12,6 +12,11 @@ import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
 import {SablierStreamCreator, LockupDynamic} from "src/sablier/SablierStreamCreator.sol";
 
+struct CustomStreamExerciseParams {
+    uint256 maxPaymentAmount;
+    uint256 deadline;
+}
+
 /// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut, @adamo
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -35,6 +40,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidSegments();
     error Exercise__ContractOutOfTokens();
     error Exercise__SegmentsNotSet();
+    error Exercise__PastDeadline()
 
     //////////////
     /// Events ///
@@ -74,14 +80,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     /// @notice The multiplier applied to the TWAP value. Encodes the discount of
     /// the options token. Uses 4 decimals.
     uint256 public multiplier;
-
-    // struct Segment {
-    //     uint128 amount;
-    //     UD2x18 exponent;
-    //     uint40 milestone;
-    // }
-
-    // LockupDynamic.Segment[] public segments;
 
     //@todo add checks for vesting times
     constructor(
@@ -199,16 +197,30 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         contractHasTokens(amount)
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
+
+        // ===============
+        //  === CHECKS ===
+        // ===============
+
+        // decode params
+        CustomStreamExerciseParams memory _params = abi.decode(params, (CustomStreamExerciseParams));
+
+        if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
+        
         // apply multiplier to price
         paymentAmount = getPaymentAmount(amount);
 
         // @todo figure out max payment amount - do we need this?
-        // if (paymentAmount > _params.totalAmount) revert Exercise__RequestedAmountTooHigh();
+        if (paymentAmount > _params.maxPaymentAmount) revert Exercise__RequestedAmountTooHigh();
 
-        // transfer payment tokens from user to the set receivers - these are the tokens the user needs to pay to get the underlying tokens at the discounted price
+        // ======================
+        //  === PROTOCOL FEES ===
+        // ======================
         distributeFeesFrom(paymentAmount, paymentToken, from);
 
-        // create the token stream
+         // ======================
+        //  === Create Stream ===
+        // ======================        
         streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient);
 
         emit Exercised(from, recipient, amount, paymentAmount);
