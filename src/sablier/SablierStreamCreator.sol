@@ -10,6 +10,12 @@ import {ISablierV2LockupLinear} from "@sablier/v2-core/src/interfaces/ISablierV2
 import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV2LockupDynamic.sol";
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
+struct ConstructorAddresses {
+    address sender;
+    address lockupLinear;
+    address lockupDynamic;
+}
+
 abstract contract SablierStreamCreator {
     using SafeCast for uint256;
 
@@ -23,13 +29,16 @@ abstract contract SablierStreamCreator {
     uint64[] public segmentExponents;
     uint40[] public segmentDurations;
 
-    constructor(address sender_, address lockupLinear_, address lockupDynamic_) {
-        if (lockupLinear_ == address(0) || lockupDynamic_ == address(0) || sender_ == address(0)) {
+    constructor(ConstructorAddresses constructorAddresses) {
+        if (
+            constructorAddresses.lockupLinear_ == address(0) || constructorAddresses.lockupDynamic_ == address(0)
+                || constructorAddresses.sender_ == address(0)
+        ) {
             revert("SablierStreamCreator: cannot set zero address");
         }
-        SENDER = sender_;
-        LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
-        LOCKUP_DYNAMIC = ISablierV2LockupDynamic(lockupDynamic_);
+        SENDER = constructorAddresses.sender_;
+        LOCKUP_LINEAR = ISablierV2LockupLinear(constructorAddresses.lockupLinear_);
+        LOCKUP_DYNAMIC = ISablierV2LockupDynamic(constructorAddresses.lockupDynamic_);
     }
 
     /////////////////////////////////
