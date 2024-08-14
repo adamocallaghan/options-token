@@ -11,9 +11,9 @@ import {ISablierV2LockupDynamic} from "@sablier/v2-core/src/interfaces/ISablierV
 import {Broker, LockupLinear, LockupDynamic} from "@sablier/v2-core/src/types/DataTypes.sol";
 
 struct ConstructorAddresses {
-    address sender;
-    address lockupLinear;
-    address lockupDynamic;
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
 }
 
 abstract contract SablierStreamCreator {
@@ -29,16 +29,14 @@ abstract contract SablierStreamCreator {
     uint64[] public segmentExponents;
     uint40[] public segmentDurations;
 
-    constructor(ConstructorAddresses constructorAddresses) {
-        if (
-            constructorAddresses.lockupLinear_ == address(0) || constructorAddresses.lockupDynamic_ == address(0)
-                || constructorAddresses.sender_ == address(0)
-        ) {
+    constructor(bytes memory constructorAddresses) {
+        (address sender_, address lockupLinear_, address lockupDynamic_) = abi.decode(constructorAddresses, (address, address, address));
+        if (lockupLinear_ == address(0) || lockupDynamic_ == address(0) || sender_ == address(0)) {
             revert("SablierStreamCreator: cannot set zero address");
         }
-        SENDER = constructorAddresses.sender_;
-        LOCKUP_LINEAR = ISablierV2LockupLinear(constructorAddresses.lockupLinear_);
-        LOCKUP_DYNAMIC = ISablierV2LockupDynamic(constructorAddresses.lockupDynamic_);
+        SENDER = sender_;
+        LOCKUP_LINEAR = ISablierV2LockupLinear(lockupLinear_);
+        LOCKUP_DYNAMIC = ISablierV2LockupDynamic(lockupDynamic_);
     }
 
     /////////////////////////////////
@@ -83,7 +81,6 @@ abstract contract SablierStreamCreator {
         IERC20(token_).approve(address(LOCKUP_LINEAR), 0);
     }
 
-    
     ///@dev Creates a stream with a custom shape based on the segments
     ///@notice both segmentExponents and segmentDurations must be set before calling this function
     ///@param amount_ The total amount of the stream

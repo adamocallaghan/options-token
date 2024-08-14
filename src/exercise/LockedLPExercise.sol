@@ -24,6 +24,12 @@ struct LockedExerciseParams {
     uint256 multiplier;
 }
 
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
+}
+
 /// @title Options Token Locked LP Price Exercise Contract
 /// @author @adamo, @funkornaut
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -77,7 +83,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     address public router;
 
     /// @notice The pair for transferring LP tokens to Sablier
-    address public pair;
+    // address public pair;
 
     /// @notice the factory for getting the pair address
     address public factory;
@@ -96,9 +102,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
-        address sender_,
-        address lockUpLinear_,
-        address lockUpDynamic_,
+        bytes memory constructorAddresses_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
@@ -106,14 +110,14 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         address factory_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(constructorAddresses_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
         factory = factory_;
 
         _setOracle(oracle_);
         _setRouter(router_);
-        _setPair(paymentToken_, underlyingToken_);
+        // _setPair(paymentToken_, underlyingToken_);
     }
 
     // /// External functions
@@ -179,6 +183,7 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
             address(underlyingToken), address(paymentToken), false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
         );
+        // uint256 lpTokenAmount = _createLp(amount, paymentAmountToAddLiquidity);
 
         // ================
         //  === LOCK LP ===
@@ -196,6 +201,12 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
     }
+
+    // function _createLp(uint256 amount, uint256 paymentAmountToAddLiquidity) internal returns (uint256 lpTokenAmount) {
+    //     (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
+    //         address(underlyingToken), address(paymentToken), false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
+    //     );
+    // }
 
     /// Owner functions
 
@@ -227,10 +238,10 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
     }
 
     /// @notice Retrieves the pair contract address by calling getPair, and sets the pair on this contract
-    function _setPair(IERC20 paymentToken_, IERC20 underlyingToken_) internal {
-        pair = IPairFactory(factory).getPair(address(paymentToken_), address(underlyingToken_), false); // get & set pair address
-        emit SetPair(paymentToken_, underlyingToken_, pair);
-    }
+    // function _setPair(IERC20 paymentToken_, IERC20 underlyingToken_) internal {
+    //     pair = IPairFactory(factory).getPair(address(paymentToken_), address(underlyingToken_), false); // get & set pair address
+    //     emit SetPair(paymentToken_, underlyingToken_, pair);
+    // }
 
     /// View functions
 

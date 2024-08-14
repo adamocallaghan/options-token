@@ -27,6 +27,12 @@ struct Params {
     uint128 minPrice;
 }
 
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
+}
+
 contract VestedTokenExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
@@ -83,7 +89,6 @@ contract VestedTokenExerciseTest is Test {
         // fork binance smart chain
         bscFork = vm.createSelectFork(BSC_RPC_URL);
 
-
         // set up accounts and fee recipients
         owner = makeAddr("owner");
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
@@ -118,18 +123,15 @@ contract VestedTokenExerciseTest is Test {
         sablierDynamic = ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS);
         sablierLockUp = ISablierV2Lockup(SABLIER_LINEAR_ADDRESS);
 
+        // ConstructorAddresses memory constructorAddresses;
+        // constructorAddresses.sender_ = sender;
+        // constructorAddresses.lockupLinear_ = address(SABLIER_LINEAR_ADDRESS);
+        // constructorAddresses.lockupDynamic_ = address(SABLIER_DYNAMIC_ADDRESS);
+
+        bytes memory constructorAddresses = abi.encode(sender, address(SABLIER_LINEAR_ADDRESS), address(SABLIER_DYNAMIC_ADDRESS));
+
         exerciser = new VestedTokenExercise(
-            optionsToken,
-            owner,
-            sender,
-            SABLIER_LINEAR_ADDRESS,
-            SABLIER_DYNAMIC_ADDRESS,
-            paymentToken,
-            underlyingToken,
-            oracle,
-            cliffDuration,
-            feeRecipients_,
-            feeBPS_
+            optionsToken, owner, constructorAddresses, paymentToken, underlyingToken, oracle, cliffDuration, feeRecipients_, feeBPS_
         );
 
         deal(UNDERLYING_TOKEN_ADDRESS, address(exerciser), 1e20 ether); // fill the vested exercise contract up with underlying tokens - tokens it will payout for oToken redemption
@@ -278,7 +280,6 @@ contract VestedTokenExerciseTest is Test {
     //     //assertEq(address(exerciser.oracle()), address(notAnOracle));
     // }
 
-
     /// Test Stream Creation
     function test_exerciseAndCreateSablierLinearStream(uint256 amount, address recipient) public {
         vm.assume(recipient != address(0));
@@ -305,7 +306,8 @@ contract VestedTokenExerciseTest is Test {
             VestedExerciseParams({maxPaymentAmount: expectedPaymentAmount, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
 
         vm.prank(user);
-        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) =
+            optionsToken.exercise(amount, recipient, address(exerciser), abi.encode(params));
 
         // verify options tokens were transferred
         assertEqDecimal(optionsToken.balanceOf(user), 0, 18, "user still has options tokens");
@@ -339,11 +341,11 @@ contract VestedTokenExerciseTest is Test {
         deal(PAYMENT_TOKEN_ADDRESS, user, 2e18);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
 
-        VestedExerciseParams memory params =
-            VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
+        VestedExerciseParams memory params = VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
 
         vm.prank(user);
-        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) =
+            optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
         console.log("block number when stream created: ", block.number);
 
         // test fail withdraw before cliff duration ends
@@ -378,11 +380,11 @@ contract VestedTokenExerciseTest is Test {
         deal(PAYMENT_TOKEN_ADDRESS, user, 2e18);
         assertEq(IERC20(PAYMENT_TOKEN_ADDRESS).balanceOf(user), 2e18, "user not funded");
 
-        VestedExerciseParams memory params =
-            VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
+        VestedExerciseParams memory params = VestedExerciseParams({maxPaymentAmount: 2e18, deadline: type(uint256).max, multiplier: PRICE_MULTIPLIER});
 
         vm.prank(user);
-        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) = optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
+        (uint256 paymentAmount,, uint256 vestDuration, uint256 streamId) =
+            optionsToken.exercise(2e18, recipient, address(exerciser), abi.encode(params));
         console.log("block number when stream created: ", block.number);
 
         // cancel the stream as the sender
@@ -391,6 +393,5 @@ contract VestedTokenExerciseTest is Test {
 
         // verify stream is cancelled
         assertEq(sablierLinear.wasCanceled(streamId), true, "stream not cancelled");
-
     }
 }

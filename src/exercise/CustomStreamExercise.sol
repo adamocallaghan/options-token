@@ -17,6 +17,12 @@ struct CustomStreamExerciseParams {
     uint256 deadline;
 }
 
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
+}
+
 /// @title Exponentially Vested Options Token Exercise Contract
 /// @author @funkornaut, @adamo
 /// @notice Contract that allows the holder of options tokens to exercise them,
@@ -40,7 +46,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     error Exercise__InvalidSegments();
     error Exercise__ContractOutOfTokens();
     error Exercise__SegmentsNotSet();
-    error Exercise__PastDeadline()
+    error Exercise__PastDeadline();
 
     //////////////
     /// Events ///
@@ -85,16 +91,14 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
-        address sender_,
-        address lockUpLinear_,
-        address lockUpDynamic_,
+        bytes memory constructorAddresses_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
         uint256 multiplier_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(constructorAddresses_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
@@ -131,7 +135,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         onlyOToken
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
-        if(segmentExponents.length == 0 || segmentDurations.length == 0) {
+        if (segmentExponents.length == 0 || segmentDurations.length == 0) {
             revert Exercise__SegmentsNotSet();
         }
         return _exercise(from, amount, recipient, params);
@@ -197,7 +201,6 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         contractHasTokens(amount)
         returns (uint256 paymentAmount, address, uint256 streamId, uint256)
     {
-
         // ===============
         //  === CHECKS ===
         // ===============
@@ -206,7 +209,7 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         CustomStreamExerciseParams memory _params = abi.decode(params, (CustomStreamExerciseParams));
 
         if (block.timestamp > _params.deadline) revert Exercise__PastDeadline();
-        
+
         // apply multiplier to price
         paymentAmount = getPaymentAmount(amount);
 
@@ -218,9 +221,9 @@ contract CustomStreamExercise is BaseExercise, SablierStreamCreator {
         // ======================
         distributeFeesFrom(paymentAmount, paymentToken, from);
 
-         // ======================
+        // ======================
         //  === Create Stream ===
-        // ======================        
+        // ======================
         streamId = createStreamWithCustomSegments(amount, address(underlyingToken), recipient);
 
         emit Exercised(from, recipient, amount, paymentAmount);

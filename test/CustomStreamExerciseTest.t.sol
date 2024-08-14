@@ -24,6 +24,12 @@ struct Params {
     uint128 minPrice;
 }
 
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
+}
+
 contract CustomStreamExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
@@ -38,13 +44,13 @@ contract CustomStreamExerciseTest is Test {
 
     //SABLIER
     // Get the latest deployment address from the docs: https://docs.sablier.com/contracts/v2/deployments
-    address public constant SABLIER_LINEAR_ADDRESS = address(0x88ad3B5c62A46Df953A5d428d33D70408F53C408); // v1.2 new - 0x88ad3B5c62A46Df953A5d428d33D70408F53C408 - old -> 0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2 
+    address public constant SABLIER_LINEAR_ADDRESS = address(0x88ad3B5c62A46Df953A5d428d33D70408F53C408); // v1.2 new - 0x88ad3B5c62A46Df953A5d428d33D70408F53C408 - old -> 0x14c35E126d75234a90c9fb185BF8ad3eDB6A90D2
     address public constant SABLIER_DYNAMIC_ADDRESS = address(0xeB6d84c585bf8AEA34F05a096D6fAA3b8477D146); //  v1.2 - new -  old - 0xf900c5E3aA95B59Cc976e6bc9c0998618729a5fa
 
     // fork vars
     uint256 bscFork;
     string BSC_RPC_URL = vm.envString("BSC_RPC_URL");
-    
+
     // thena addresses
     address POOL_ADDRESS = 0x56EDFf25385B1DaE39d816d006d14CeCf96026aF; // the liquidity pool of our paired tokens
     address UNDERLYING_TOKEN_ADDRESS = 0x4d2d32d8652058Bf98c772953E1Df5c5c85D9F45; // the underlying token address - DAO Maker token
@@ -80,15 +86,15 @@ contract CustomStreamExerciseTest is Test {
         //assert(bscFork > 0); // Ensure the fork was created
 
         // set up accounts and fee recipients
-        //@note not sure if deal's are necessary 
+        //@note not sure if deal's are necessary
         owner = makeAddr("owner");
-       // vm.deal(owner, 1 ether);
+        // vm.deal(owner, 1 ether);
         tokenAdmin = makeAddr("tokenAdmin"); //oToken minter
-       // vm.deal(tokenAdmin, 1 ether);
+        // vm.deal(tokenAdmin, 1 ether);
         sender = makeAddr("sender"); //sender of the token stream
-       // vm.deal(sender, 1 ether);
+        // vm.deal(sender, 1 ether);
         user = makeAddr("user");
-       // vm.deal(user, 1 ether);
+        // vm.deal(user, 1 ether);
 
         feeRecipients_ = new address[](2);
         feeRecipients_[0] = makeAddr("feeRecipient");
@@ -116,12 +122,17 @@ contract CustomStreamExerciseTest is Test {
         sablierLinear = ISablierV2LockupLinear(SABLIER_LINEAR_ADDRESS);
         sablierDynamic = ISablierV2LockupDynamic(SABLIER_DYNAMIC_ADDRESS);
 
+        // ConstructorAddresses memory constructorAddresses;
+        // constructorAddresses.sender_ = sender;
+        // constructorAddresses.lockupLinear_ = address(SABLIER_LINEAR_ADDRESS);
+        // constructorAddresses.lockupDynamic_ = address(SABLIER_DYNAMIC_ADDRESS);
+
+        bytes memory constructorAddresses = abi.encode(sender, address(SABLIER_LINEAR_ADDRESS), address(SABLIER_DYNAMIC_ADDRESS));
+
         exerciser = new CustomStreamExercise(
             optionsToken,
             owner,
-            sender,
-            SABLIER_LINEAR_ADDRESS,
-            SABLIER_DYNAMIC_ADDRESS,
+            constructorAddresses,
             paymentToken,
             underlyingToken,
             oracle,
@@ -205,9 +216,9 @@ contract CustomStreamExerciseTest is Test {
     }
 
     function test_exerciseAndCreateSablierStreamExpo() public {
-        address recipient = makeAddr("recipient"); 
+        address recipient = makeAddr("recipient");
 
-        uint256 amount = 40000000; 
+        uint256 amount = 40000000;
         // mint options tokens
         vm.prank(tokenAdmin);
         optionsToken.mint(user, amount);
@@ -246,7 +257,6 @@ contract CustomStreamExerciseTest is Test {
     }
 
     function test_onlyOwnerCanSetSegments() public {
-
         vm.startPrank(user);
         vm.expectRevert("UNAUTHORIZED");
         exerciser.setSegments(new uint64[](4), new uint40[](4));
@@ -254,7 +264,7 @@ contract CustomStreamExerciseTest is Test {
 
         uint64[] memory exponents = new uint64[](4);
         uint40[] memory durations = new uint40[](4);
-        
+
         durations[0] = 1;
         durations[1] = 2;
         durations[2] = 3;
@@ -285,7 +295,6 @@ contract CustomStreamExerciseTest is Test {
         assertEq(duration2, 2);
         assertEq(duration3, 3);
         assertEq(duration4, 4);
-
     }
 
     // function test_onlyOwnerCanSetOracle(address hacker) public {

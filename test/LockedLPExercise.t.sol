@@ -40,6 +40,12 @@ struct StreamDetails {
     uint256 ratePerSecond;
 }
 
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
+}
+
 contract LockedLPExerciseTest is Test {
     using FixedPointMathLib for uint256;
 
@@ -124,13 +130,18 @@ contract LockedLPExerciseTest is Test {
         // deploy oracle contract
         oracle = new ThenaOracle(_default.pair, _default.token, _default.owner, _default.secs, _default.minPrice);
 
+        // ConstructorAddresses memory constructorAddresses;
+        // constructorAddresses.sender_ = sender;
+        // constructorAddresses.lockupLinear_ = address(LOCKUP_LINEAR);
+        // constructorAddresses.lockupDynamic_ = address(SABLIER_DYNAMIC_ADDRESS);
+
+        bytes memory constructorAddresses = abi.encode(sender, address(LOCKUP_LINEAR), address(SABLIER_DYNAMIC_ADDRESS));
+
         // deploy LockedExercise contract
         exerciser = new LockedExercise(
             optionsToken,
             owner,
-            sender,
-            address(LOCKUP_LINEAR),
-            address(SABLIER_DYNAMIC_ADDRESS),
+            constructorAddresses,
             IERC20(PAYMENT_TOKEN_ADDRESS),
             IERC20(TOKEN_ADDRESS),
             oracle,

@@ -7,7 +7,6 @@ import {SafeERC20} from "oz/token/ERC20/utils/SafeERC20.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {SignedMath} from "oz/utils/math/SignedMath.sol";
 
-
 import {BaseExercise} from "../exercise/BaseExercise.sol";
 import {IOracle} from "../interfaces/IOracle.sol";
 import {OptionsToken} from "../OptionsToken.sol";
@@ -17,6 +16,12 @@ struct VestedExerciseParams {
     uint256 maxPaymentAmount;
     uint256 deadline;
     uint256 multiplier;
+}
+
+struct ConstructorAddresses {
+    address sender_;
+    address lockupLinear_;
+    address lockupDynamic_;
 }
 
 /// @title Options Token Vested Exercise Contract
@@ -84,16 +89,14 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
     constructor(
         OptionsToken oToken_,
         address owner_,
-        address sender_,
-        address lockUpLinear_,
-        address lockUpDynamic_,
+        bytes memory constructorAddresses_,
         IERC20 paymentToken_,
         IERC20 underlyingToken_,
         IOracle oracle_,
         uint40 cliffDuration_,
         address[] memory feeRecipients_,
         uint256[] memory feeBPS_
-    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(sender_, lockUpLinear_, lockUpDynamic_) Owned(owner_) {
+    ) BaseExercise(oToken_, feeRecipients_, feeBPS_) SablierStreamCreator(constructorAddresses_) Owned(owner_) {
         paymentToken = paymentToken_;
         underlyingToken = underlyingToken_;
 
@@ -232,5 +235,4 @@ contract VestedTokenExercise is BaseExercise, SablierStreamCreator {
         slope = int256(maxVestDuration - minVestDuration) / (int256(maxMultiplier) - int256(minMultiplier));
         intercept = int256(minVestDuration) - (slope * int256(minMultiplier));
     }
-
 }
