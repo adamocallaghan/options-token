@@ -53,11 +53,6 @@ abstract contract SablierStreamCreator {
         virtual
         returns (uint256 streamId)
     {
-        // revert if the recipient is a contract
-        if (recipient_.code.length > 0) {
-            revert SablierStreamCreator__RecipientCannotBeAContract();
-        }
-
         // Approve the Sablier contract to pull the tokens from this contract
         IERC20(token_).approve(address(LOCKUP_LINEAR), amount_);
 
