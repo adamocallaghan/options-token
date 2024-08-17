@@ -117,7 +117,6 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
         _setOracle(oracle_);
         _setRouter(router_);
-        // _setPair(paymentToken_, underlyingToken_);
     }
 
     // /// External functions
@@ -151,9 +150,9 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
             revert Exercise__InvalidMultiplier();
         }
 
-        // =========================
-        //  === PRICE & DISCOUNT ===
-        // =========================
+        // ========================
+        // === PRICE & DISCOUNT ===
+        // ========================
 
         // apply multiplier to price
         uint256 price = oracle.getPrice().mulDivUp(_params.multiplier, MULTIPLIER_DENOM);
@@ -162,15 +161,15 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         paymentAmount = amount.mulWadUp(price);
         if (paymentAmount > _params.maxPaymentAmount) revert Exercise__SlippageTooHigh();
 
-        // ======================
-        //  === PROTOCOL FEES ===
-        // ======================
+        // =====================
+        // === PROTOCOL FEES ===
+        // =====================
 
         distributeFeesFrom(paymentAmount, paymentToken, from); // transfer payment tokens from user to the set receivers
 
-        // ==================
-        //  === CREATE LP ===
-        // ==================
+        // =================
+        // === CREATE LP ===
+        // =================
 
         // calculate second side (payment token) amount of the LP that user needs to supply
         (uint256 underlyingReserve, uint256 paymentReserve) = IRouter(router).getReserves(address(underlyingToken), address(paymentToken), false);
@@ -183,11 +182,10 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
             address(underlyingToken), address(paymentToken), false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
         );
-        // uint256 lpTokenAmount = _createLp(amount, paymentAmountToAddLiquidity);
 
-        // ================
-        //  === LOCK LP ===
-        // ================
+        // ===============
+        // === LOCK LP ===
+        // ===============
 
         // get the lock duration using the chosen multiplier
         lockDuration = getLockDurationForLpDiscount(_params.multiplier);
@@ -201,12 +199,6 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
 
         emit ExerciseLp(msg.sender, recipient, amount, paymentAmount, lpTokenAmount, lockDuration, streamId);
     }
-
-    // function _createLp(uint256 amount, uint256 paymentAmountToAddLiquidity) internal returns (uint256 lpTokenAmount) {
-    //     (,, uint256 lpTokenAmount) = IRouter(router).addLiquidity(
-    //         address(underlyingToken), address(paymentToken), false, amount, paymentAmountToAddLiquidity, 1, 1, address(this), block.timestamp
-    //     );
-    // }
 
     /// Owner functions
 
@@ -237,18 +229,11 @@ contract LockedExercise is BaseExercise, SablierStreamCreator {
         emit SetRouter(router_);
     }
 
-    /// @notice Retrieves the pair contract address by calling getPair, and sets the pair on this contract
-    // function _setPair(IERC20 paymentToken_, IERC20 underlyingToken_) internal {
-    //     pair = IPairFactory(factory).getPair(address(paymentToken_), address(underlyingToken_), false); // get & set pair address
-    //     emit SetPair(paymentToken_, underlyingToken_, pair);
-    // }
-
     /// View functions
 
     function getLockDurationForLpDiscount(uint256 _discount) public view returns (uint256 duration) {
         (int256 slope, int256 intercept) = getSlopeInterceptForLpDiscount();
         duration = SignedMath.abs(slope * int256(_discount) + intercept);
-        // lockDuration = 1 weeks;
     }
 
     function getSlopeInterceptForLpDiscount() public view returns (int256 slope, int256 intercept) {
